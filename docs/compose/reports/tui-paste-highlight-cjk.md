@@ -4,7 +4,7 @@ status: delivered
 specs: []
 plans: []
 branch: fix/tui-paste-highlight-cjk-opentui-0.3.4
-commits: 9d32146
+commits: 98df392..357a4ba
 ---
 
 # TUI Paste-Highlight Drift with CJK Input — Final Report
@@ -20,6 +20,11 @@ submit position. The fix upgrades `@opentui/core` from 0.1.101 to 0.3.4 — the
 same line upstream opencode ships — and aligns the prompt's application-layer
 coordinate conversions so display-width offsets and UTF-16 string indices never
 get mixed.
+
+The same opentui 0.3.4 upgrade also unblocks a second fix in the same render
+path: assistant text now renders through opentui's `<markdown>` with
+`internalBlockMode="top-level"`, so streaming output no longer flashes raw
+markdown markers (`-`, `##`, `**`) on already-settled lines as the message grows.
 
 ## Architecture
 
@@ -46,6 +51,10 @@ fix keeps these two coordinate systems strictly separated.
   cursor.
 - **`component/prompt/part.ts`** — `expandPlaceholders` (from #1292) still bridges
   the two systems at submit time; it is retained, not reverted.
+- **`routes/session/index.tsx`** — the assistant-text `<markdown>` now sets
+  `internalBlockMode="top-level"` + `tableOptions={{ style: "grid" }}`, so each
+  top-level markdown block renders as its own child and only the unstable trailing
+  block rebuilds during streaming.
 
 Data flow on submit: extmark `start`/`end` (display width) → `widthToStringIndex`
 → UTF-16 indices → `String.slice` replaces each placeholder with its real pasted
@@ -70,12 +79,19 @@ content, applied right-to-left so earlier offsets stay valid.
 - **#1292 is complementary, not redundant.** opentui's upgrade fixes extmark
   tracking inside the editor; `expandPlaceholders` fixes the width→UTF-16
   conversion when slicing `plainText` at submit. Both are required.
+- **`internalBlockMode="top-level"` for streaming markdown.** opentui's
+  `<markdown>` defaults to `"coalesced"` (the whole message is one block, so each
+  streamed chunk re-renders everything and flashes raw markers). Upstream opencode
+  has shipped `"top-level"` ever since it flipped back to the `<markdown>`
+  renderable, so it never ran the coalesced+streaming combination in production —
+  we adopt the same config rather than the unverified default.
 
 ## Usage
 
 No user-facing API change. Behavior change only: pasting after — or typing wide
 characters before — a paste/image/PDF/SVG placeholder now keeps the highlight
-aligned and submits the correct expanded content.
+aligned and submits the correct expanded content. Streaming assistant markdown
+no longer flickers raw markers on settled lines as new content arrives.
 
 ## Verification
 
@@ -109,6 +125,10 @@ aligned and submits the correct expanded content.
   coordinate semantics via rendered cells; the test-renderer cell API wasn't
   worth the depth once the user's live test already showed upstream renders
   correctly.
+- [lesson] The streaming markdown flicker (`-`/`##` flashing) was version-
+  independent, not an upgrade regression — but the fix still belonged here: the
+  0.3.4 upgrade is what makes `internalBlockMode="top-level"` available, and
+  bundling it avoids a second round of manual TUI verification.
 
 ## Source Materials
 
