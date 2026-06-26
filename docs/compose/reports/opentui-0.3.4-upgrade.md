@@ -80,10 +80,14 @@ content, applied right-to-left so earlier offsets stay valid.
   conversion when slicing `plainText` at submit. Both are required.
 - **`internalBlockMode="top-level"` for streaming markdown.** opentui's
   `<markdown>` defaults to `"coalesced"` (the whole message is one block, so each
-  streamed chunk re-renders everything and flashes raw markers). Upstream opencode
-  has shipped `"top-level"` ever since it flipped back to the `<markdown>`
-  renderable, so it never ran the coalesced+streaming combination in production —
-  we adopt the same config rather than the unverified default.
+  streamed chunk re-renders everything and flashes raw markers). Notably, the
+  0.3.4 upgrade itself made this flicker *more* pronounced than on 0.1.101 (even a
+  bare `-` list marker briefly showed raw before settling) — why 0.3.x's coalesced
+  re-render is more aggressive than the old version was not fully root-caused.
+  Setting `"top-level"` (what upstream has shipped ever since it flipped back to
+  the `<markdown>` renderable; it never ran coalesced+streaming in production)
+  reduces it markedly. So this is an effective mitigation, not a complete
+  explanation of why the upgrade regressed it first.
 
 ## Usage
 
@@ -124,10 +128,12 @@ no longer flickers raw markers on settled lines as new content arrives.
   coordinate semantics via rendered cells; the test-renderer cell API wasn't
   worth the depth once the user's live test already showed upstream renders
   correctly.
-- [lesson] The streaming markdown flicker (`-`/`##` flashing) was version-
-  independent, not an upgrade regression — but the fix still belonged here: the
-  0.3.4 upgrade is what makes `internalBlockMode="top-level"` available, and
-  bundling it avoids a second round of manual TUI verification.
+- [lesson] The 0.3.4 upgrade *increased* streaming markdown flicker versus
+  0.1.101 (raw `-`/`##` flashing on settled lines), root cause not fully
+  explained; `internalBlockMode="top-level"` mitigated it. Treat this as a signal
+  that 0.3.x's render/redraw behavior differs non-trivially from 0.1.x — other
+  undiscovered regressions are plausible and warrant real-world dogfooding before
+  merge.
 
 ## Source Materials
 
