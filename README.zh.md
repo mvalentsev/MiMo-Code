@@ -250,11 +250,9 @@ MiMoCode 基于 [OpenCode](https://github.com/anomalyco/opencode) fork 构建，
 
 ## MiMo 生态
 
-想在其他 Agent 和编程助手里也用上小米 MiMo 模型？
+除了 MiMoCode，小米 MiMo 模型也能在 Cursor、Cline、Zed 等各种 Agent 和编程工具里使用。
 
-👉 **[awesome-mimo-agent](https://github.com/XiaomiMiMo/awesome-mimo-agent)** —— 一个精选清单，收录了把 MiMo 模型接入各类主流 AI Agent 与编程助手（Cursor、Cline、Zed 等）的接入指南。
-
-如果你已经把 MiMo 接入了某个工具，欢迎去那里提 issue 或 PR 补充你的接入指南。
+**[awesome-mimo-agent](https://github.com/XiaomiMiMo/awesome-mimo-agent)** 收集了这些工具接入 MiMo 模型的配置教程，想换个工具试试 MiMo 的话可以去看看。也欢迎把你自己的接入方式提 PR 分享出来。
 
 ---
 
