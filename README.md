@@ -69,6 +69,14 @@ some older non-Unicode programs to display incorrectly, so treat it as a workaro
 
 ---
 
+## MiMo Ecosystem
+
+Beyond MiMoCode, Xiaomi MiMo models also work in other agents and coding tools like Cursor, Cline, and Zed.
+
+**[awesome-mimo-agent](https://github.com/XiaomiMiMo/awesome-mimo-agent)** collects setup guides for using MiMo in those tools — worth a look if you want to try MiMo elsewhere. Contributions welcome: open a PR to add your own setup.
+
+---
+
 ## Core Features
 
 ### Multiple Agents
@@ -253,16 +261,6 @@ bun turbo typecheck      # Type check
 ## Relationship to OpenCode
 
 MiMoCode is built as a fork of [OpenCode](https://github.com/anomalyco/opencode). It keeps all core OpenCode capabilities (multiple providers, TUI, LSP, MCP, plugins) and adds persistent memory, intelligent context management, subagent orchestration, goal-driven autonomous loops, compose workflows, and self-improvement via dream/distill.
-
----
-
-## MiMo Ecosystem
-
-Want to use Xiaomi MiMo models in other agents and coding assistants too?
-
-👉 **[awesome-mimo-agent](https://github.com/XiaomiMiMo/awesome-mimo-agent)** — a curated list of guides for integrating MiMo models into popular AI agent and coding-assistant tools (Cursor, Cline, Zed, and more).
-
-If you've integrated MiMo into a tool, contributions are welcome — open an issue or PR there to add your guide.
 
 ---
 
