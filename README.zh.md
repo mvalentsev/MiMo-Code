@@ -201,7 +201,58 @@ export PULSE_SERVER=tcp:127.0.0.1:4713
 
 ## 配置
 
-通过项目目录下的 `.mimocode/mimocode.json`（或全局 `~/.config/mimocode/mimocode.json`）配置。主要选项包括：
+MiMoCode 使用 JSON/JSONC 配置文件，并提供 JSON Schema 以获得编辑器自动补全和校验。
+
+### 文件位置
+
+| 文件 | 项目级 | 全局 |
+|------|--------|------|
+| 主配置 | `.mimocode/mimocode.jsonc` | `~/.config/mimocode/mimocode.json` |
+| TUI 配置 | `.mimocode/tui.json` | `~/.config/mimocode/tui.json` |
+| 认证凭据 | — | `~/.local/share/mimocode/auth.json` |
+
+> Windows 下 XDG 路径位于 `%LOCALAPPDATA%\mimocode\`。可通过 `MIMOCODE_HOME` 环境变量覆盖所有路径。
+
+### JSON Schema
+
+MiMoCode 在首次加载配置时会自动注入 `$schema` 字段，使编辑器开箱即获得补全和校验：
+
+| 配置文件 | Schema URL |
+|----------|-----------|
+| `mimocode.jsonc` / `mimocode.json` | `https://mimo.xiaomi.com/mimocode/config.json` |
+| `tui.json` | `https://mimo.xiaomi.com/mimocode/tui.json` |
+
+<details>
+<summary><strong>VS Code / Cursor：信任 Schema 域名</strong></summary>
+
+在 `settings.json` 中添加，使编辑器可以下载 Schema 以获得自动补全：
+
+```json
+{
+  "json.schemaDownload.trustedDomains": {
+    "https://mimo.xiaomi.com/": true
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>数据目录</strong></summary>
+
+除配置文件外，MiMoCode 在 XDG 路径（或 `$MIMOCODE_HOME`）下存储运行时数据：
+
+| 目录 | 默认路径（Linux） | 内容 |
+|------|------------------|------|
+| data | `~/.local/share/mimocode/` | SQLite 数据库、认证凭据（`auth.json`）、记忆、日志 |
+| state | `~/.local/state/mimocode/` | TUI 偏好设置（`kv.json`）、最近使用模型（`model.json`） |
+| cache | `~/.cache/mimocode/` | 语言服务器、缓存的模型目录、技能 |
+
+如需删除已存储的凭据，删除 data 目录下的 `auth.json` 即可。macOS 下 XDG data 默认为 `~/Library/Application Support/mimocode/`。
+
+</details>
+
+### 主要选项
 
 - Provider 和模型选择
 - Agent 权限和自定义 Agent
@@ -222,7 +273,7 @@ Max Mode（并行 best-of-N 推理 + 裁判选优）可通过配置中的 `exper
 
 ```json title=".mimocode/mimocode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://mimo.xiaomi.com/mimocode/config.json",
   "permission": {
     "external_directory": {
       "/tmp/**": "allow"

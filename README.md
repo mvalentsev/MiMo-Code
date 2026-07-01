@@ -204,7 +204,58 @@ Custom providers must register at least one model in their `models` field to be 
 
 ## Configuration
 
-MiMoCode is configured via `.mimocode/mimocode.json` in the project directory (or `~/.config/mimocode/mimocode.json` globally). Key options include:
+MiMoCode uses JSON/JSONC config files with published JSON Schemas for autocompletion and validation.
+
+### File Locations
+
+| File | Project-level | Global |
+|------|--------------|--------|
+| Main config | `.mimocode/mimocode.jsonc` | `~/.config/mimocode/mimocode.json` |
+| TUI config | `.mimocode/tui.json` | `~/.config/mimocode/tui.json` |
+| Auth credentials | — | `~/.local/share/mimocode/auth.json` |
+
+> On Windows, XDG paths fall under `%LOCALAPPDATA%\mimocode\`. You can override all paths with `MIMOCODE_HOME`.
+
+### JSON Schemas
+
+MiMoCode auto-injects a `$schema` field when it first loads your config, so your editor gets completions and validation out of the box:
+
+| Config | Schema URL |
+|--------|-----------|
+| `mimocode.jsonc` / `mimocode.json` | `https://mimo.xiaomi.com/mimocode/config.json` |
+| `tui.json` | `https://mimo.xiaomi.com/mimocode/tui.json` |
+
+<details>
+<summary><strong>VS Code / Cursor: trust the schema domain</strong></summary>
+
+Add to your `settings.json` so the editor can download schemas for autocompletion:
+
+```json
+{
+  "json.schemaDownload.trustedDomains": {
+    "https://mimo.xiaomi.com/": true
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Data directories</strong></summary>
+
+Beyond config files, MiMoCode stores runtime data under XDG paths (or `$MIMOCODE_HOME`):
+
+| Directory | Default (Linux) | Contents |
+|-----------|----------------|----------|
+| data | `~/.local/share/mimocode/` | SQLite database, auth credentials (`auth.json`), memory, logs |
+| state | `~/.local/state/mimocode/` | TUI preferences (`kv.json`), recent models (`model.json`) |
+| cache | `~/.cache/mimocode/` | Language servers, cached model catalog, skills |
+
+To remove stored credentials, delete `auth.json` from the data directory. On macOS, XDG data defaults to `~/Library/Application Support/mimocode/`.
+
+</details>
+
+### Key Options
 
 - Provider and model selection
 - Agent permissions and custom agents
@@ -228,7 +279,7 @@ be prompted each time, you can opt in by allowing it in your config:
 
 ```json title=".mimocode/mimocode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://mimo.xiaomi.com/mimocode/config.json",
   "permission": {
     "external_directory": {
       "/tmp/**": "allow"

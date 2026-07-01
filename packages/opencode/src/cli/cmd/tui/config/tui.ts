@@ -192,13 +192,21 @@ export async function get() {
   return runPromise((svc) => svc.get())
 }
 
+const TUI_SCHEMA_URL = "https://mimo.xiaomi.com/mimocode/tui.json"
+
 async function loadFile(filepath: string): Promise<Info> {
   const text = await ConfigPaths.readFile(filepath)
   if (!text) return {}
-  return load(text, filepath).catch((error) => {
+  const data = await load(text, filepath).catch((error) => {
     log.warn("failed to load tui config", { path: filepath, error })
-    return {}
+    return {} as Info
   })
+  if (!data.$schema) {
+    data.$schema = TUI_SCHEMA_URL
+    const updated = text.replace(/^\s*\{/, `{\n  "$schema": "${TUI_SCHEMA_URL}",`)
+    await Filesystem.write(filepath, updated).catch(() => {})
+  }
+  return data
 }
 
 async function load(text: string, configFilepath: string): Promise<Info> {

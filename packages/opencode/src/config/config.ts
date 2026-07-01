@@ -557,8 +557,8 @@ export const layer = Layer.effect(
 
       yield* Effect.promise(() => resolveLoadedPlugins(data, options.path))
       if (!data.$schema) {
-        data.$schema = "https://opencode.ai/config.json"
-        const updated = text.replace(/^\s*\{/, '{\n  "$schema": "https://opencode.ai/config.json",')
+        data.$schema = "https://mimo.xiaomi.com/mimocode/config.json"
+        const updated = text.replace(/^\s*\{/, '{\n  "$schema": "https://mimo.xiaomi.com/mimocode/config.json",')
         yield* fs.writeFileString(options.path, updated).pipe(Effect.catch(() => Effect.void))
       }
       return data
@@ -586,13 +586,24 @@ export const layer = Layer.effect(
             .then(async (mod) => {
               const { provider, model, ...rest } = mod.default
               if (provider && model) result.model = `${provider}/${model}`
-              result["$schema"] = "https://opencode.ai/config.json"
+              result["$schema"] = "https://mimo.xiaomi.com/mimocode/config.json"
               result = mergeDeep(result, rest)
               await fsNode.writeFile(path.join(Global.Path.config, "config.json"), JSON.stringify(result, null, 2))
               await fsNode.unlink(legacy)
             })
             .catch(() => {}),
         )
+      }
+
+      // Seed a starter config when no global config file exists yet
+      const globalConfigFile = path.join(Global.Path.config, "mimocode.jsonc")
+      if (
+        !existsSync(path.join(Global.Path.config, "config.json")) &&
+        !existsSync(path.join(Global.Path.config, "mimocode.json")) &&
+        !existsSync(globalConfigFile)
+      ) {
+        const starter = '{\n  "$schema": "https://mimo.xiaomi.com/mimocode/config.json"\n}\n'
+        yield* fs.writeFileString(globalConfigFile, starter).pipe(Effect.catch(() => Effect.void))
       }
 
       return result
@@ -736,7 +747,7 @@ export const layer = Layer.effect(
             }
             const wellknown = (yield* Effect.promise(() => response.json())) as { config?: Record<string, unknown> }
             const remoteConfig = wellknown.config ?? {}
-            if (!remoteConfig.$schema) remoteConfig.$schema = "https://opencode.ai/config.json"
+            if (!remoteConfig.$schema) remoteConfig.$schema = "https://mimo.xiaomi.com/mimocode/config.json"
             const source = `${url}/.well-known/opencode`
             const next = yield* loadConfig(JSON.stringify(remoteConfig), {
               dir: path.dirname(source),
