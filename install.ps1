@@ -51,14 +51,15 @@ if (($PSVersionTable.PSVersion.Major) -lt 5) {
 
 # --- Detect architecture ---
 
-$Arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else {
-    Write-Err "MiMoCode requires a 64-bit operating system."
-}
+$Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" }
+    elseif ([Environment]::Is64BitOperatingSystem) { "x64" }
+    else { Write-Err "MiMoCode requires a 64-bit operating system." }
 
-# AVX2 baseline detection
+# AVX2 baseline detection (only relevant for x64)
 $NeedsBaseline = $false
-try {
-    $code = @"
+if ($Arch -eq "x64") {
+    try {
+        $code = @"
 using System;
 using System.Runtime.InteropServices;
 public class CpuFeature {
@@ -67,11 +68,12 @@ public class CpuFeature {
     public static bool HasAVX2() { return IsProcessorFeaturePresent(40); }
 }
 "@
-    Add-Type -TypeDefinition $code -Language CSharp -ErrorAction SilentlyContinue
-    if (-not [CpuFeature]::HasAVX2()) { $NeedsBaseline = $true }
-} catch {
-    # If detection fails, assume baseline for safety
-    $NeedsBaseline = $true
+        Add-Type -TypeDefinition $code -Language CSharp -ErrorAction SilentlyContinue
+        if (-not [CpuFeature]::HasAVX2()) { $NeedsBaseline = $true }
+    } catch {
+        # If detection fails, assume baseline for safety
+        $NeedsBaseline = $true
+    }
 }
 
 $Target = "windows-$Arch"
