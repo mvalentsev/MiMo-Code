@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     MiMoCode installer for Windows.
 .DESCRIPTION
@@ -129,7 +129,13 @@ New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
 $ZipPath = Join-Path $TmpDir $Filename
 
 try {
-    Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
+    $curlExe = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if ($curlExe) {
+        & curl.exe -fSL -o $ZipPath $Url
+        if ($LASTEXITCODE -ne 0) { throw "curl.exe failed with exit code $LASTEXITCODE" }
+    } else {
+        Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
+    }
 } catch {
     Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
     Write-Err "Failed to download from $Url`n$($_.Exception.Message)"
