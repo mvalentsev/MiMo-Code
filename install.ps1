@@ -6,6 +6,7 @@
     then adds the directory to the user PATH.
 .PARAMETER Version
     Install a specific version (e.g., 0.1.0). Defaults to latest.
+    When piping via iex, use $env:VERSION instead.
 .PARAMETER NoModifyPath
     Don't modify the user PATH environment variable.
 .LINK
@@ -13,7 +14,7 @@
 .EXAMPLE
     irm https://mimo.xiaomi.com/install.ps1 | iex
 .EXAMPLE
-    irm https://mimo.xiaomi.com/install.ps1 | iex -Args '-Version', '0.1.0'
+    $env:VERSION = "0.1.0"; irm https://mimo.xiaomi.com/install.ps1 | iex
 #>
 param(
     [String] $Version,
@@ -22,6 +23,9 @@ param(
 
 Set-StrictMode -Off
 $ErrorActionPreference = 'Stop'
+
+# Support $env:VERSION for irm | iex usage (param() doesn't receive args via pipeline)
+if (-not $Version -and $env:VERSION) { $Version = $env:VERSION }
 
 $IS_EXECUTED_FROM_IEX = ($null -eq $MyInvocation.MyCommand.Path)
 
