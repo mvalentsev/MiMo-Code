@@ -23,6 +23,7 @@ param(
 
 Set-StrictMode -Off
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 
 # Support $env:VERSION for irm | iex usage (param() doesn't receive args via pipeline)
 if (-not $Version -and $env:VERSION) { $Version = $env:VERSION }
