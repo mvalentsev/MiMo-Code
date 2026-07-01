@@ -16,6 +16,8 @@
 .EXAMPLE
     $env:VERSION = "0.1.0"; irm https://mimo.xiaomi.com/install.ps1 | iex
 #>
+# This file requires UTF-8 BOM to run directly on PowerShell 5.1.
+# Recommended: powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"
 param(
     [String] $Version,
     [Switch] $NoModifyPath
