@@ -17,7 +17,6 @@
     $env:VERSION = "0.1.0"; irm https://mimo.xiaomi.com/install.ps1 | iex
 #>
 # This file requires UTF-8 BOM to run directly on PowerShell 5.1.
-# Recommended: powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"
 param(
     [String] $Version,
     [Switch] $NoModifyPath
@@ -170,7 +169,6 @@ if (-not $NoModifyPath) {
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 Write-Host ""
-$Dim = "DarkGray"
 function Write-Logo($Left, $Right) {
     Write-Host $Left -NoNewline -ForegroundColor DarkGray; Write-Host $Right
 }
@@ -193,6 +191,7 @@ Write-Host ""
 
 if ($PathUpdated) {
     Write-Host "To get started, open a new terminal and run:" -ForegroundColor DarkGray
+    Write-Host "  (VS Code/Cursor users may need to fully restart the editor)" -ForegroundColor DarkGray
 } else {
     Write-Host "To get started:" -ForegroundColor DarkGray
 }
