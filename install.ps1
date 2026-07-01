@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     MiMoCode installer for Windows.
 .DESCRIPTION
@@ -157,6 +157,9 @@ if (-not $NoModifyPath) {
 }
 
 # --- Print banner ---
+
+# Ensure console can render Unicode (PS 5.1 defaults to system code page)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 Write-Host ""
 $Dim = "DarkGray"
