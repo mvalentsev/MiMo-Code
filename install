@@ -476,8 +476,6 @@ if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     echo -e ""
     if [[ "${path_written:-}" == "true" && -n "${config_file:-}" ]]; then
         echo -e "source $config_file  ${MUTED}# or open a new terminal${NC}"
-    elif [[ "$no_modify_path" == "true" ]]; then
-        echo -e "export PATH=$INSTALL_DIR:\$PATH"
     else
         echo -e "export PATH=$INSTALL_DIR:\$PATH"
     fi

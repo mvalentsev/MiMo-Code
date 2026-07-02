@@ -171,9 +171,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | ChildPro
       const upgradeCurlWindows = Effect.fnUntraced(function* (target: string) {
         const pid = process.pid
         const script = [
-          `$pidToWait = ${pid}`,
-          `while (Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }`,
-          `$env:VERSION = '${target}'`,
+          `while (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }`,
           `irm https://mimo.xiaomi.com/install.ps1 | iex`,
         ].join("; ")
 
@@ -181,6 +179,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | ChildPro
           detached: true,
           stdio: "ignore",
           windowsHide: true,
+          env: { ...process.env, VERSION: target },
         })
         child.unref()
         log.info("scheduled Windows upgrade", { target, pid, updaterPid: child.pid })

@@ -368,12 +368,16 @@ function shortenPath(p: string): string {
 async function cleanWindowsPath() {
   const installDir = path.join(os.homedir(), ".mimocode", "bin")
   const script = `
+    $installDir = $env:MIMOCODE_UNINSTALL_DIR
     $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
-    if ($userPath -and $userPath -like '*${installDir}*') {
-      $newPath = ($userPath -split ';' | Where-Object { $_ -ne '${installDir}' }) -join ';'
+    if ($userPath -and $userPath -like "*$installDir*") {
+      $newPath = ($userPath -split ';' | Where-Object { $_ -ne $installDir }) -join ';'
       [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
     }
   `
-  const result = await Process.run(["powershell", "-ep", "Bypass", "-c", script], { nothrow: true })
+  const result = await Process.run(["powershell", "-ep", "Bypass", "-c", script], {
+    nothrow: true,
+    env: { ...process.env, MIMOCODE_UNINSTALL_DIR: installDir },
+  })
   if (result.code !== 0) throw new Error(result.stderr.toString() || "Failed to clean User PATH")
 }
