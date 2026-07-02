@@ -369,8 +369,8 @@ async function cleanWindowsPath() {
   const installDir = path.join(os.homedir(), ".mimocode", "bin")
   const script = `
     $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
-    if ($userPath -and $userPath -like '*${installDir.replace(/\\/g, "\\\\")}*') {
-      $newPath = ($userPath -split ';' | Where-Object { $_ -ne '${installDir.replace(/\\/g, "\\\\")}' }) -join ';'
+    if ($userPath -and $userPath -like '*${installDir}*') {
+      $newPath = ($userPath -split ';' | Where-Object { $_ -ne '${installDir}' }) -join ';'
       [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
     }
   `
