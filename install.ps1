@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     MiMoCode installer for Windows.
 .DESCRIPTION
