@@ -144,6 +144,10 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | ChildPro
 
       const upgradeCurl = Effect.fnUntraced(
         function* (target: string) {
+          if (process.platform === "win32") {
+            const script = `$env:VERSION='${target}'; irm https://mimo.xiaomi.com/install.ps1 | iex`
+            return yield* run(["powershell", "-ep", "Bypass", "-c", script])
+          }
           const response = yield* httpOk.execute(HttpClientRequest.get("https://mimo.xiaomi.com/install"))
           const body = yield* response.text
           const bodyBytes = new TextEncoder().encode(body)
