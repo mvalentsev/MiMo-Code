@@ -5,6 +5,7 @@ import { withTransientReadRetry } from "@/util/effect-http-client"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import z from "zod"
 import path from "path"
+import { spawn as nodeSpawn } from "child_process"
 import { BusEvent } from "@/bus/bus-event"
 import { Flag } from "../flag/flag"
 import { Log } from "../util"
@@ -145,8 +146,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | ChildPro
       const upgradeCurl = Effect.fnUntraced(
         function* (target: string) {
           if (process.platform === "win32") {
-            const script = `$env:VERSION='${target}'; irm https://mimo.xiaomi.com/install.ps1 | iex`
-            return yield* run(["powershell", "-ep", "Bypass", "-c", script])
+            return yield* upgradeCurlWindows(target)
           }
           const response = yield* httpOk.execute(HttpClientRequest.get("https://mimo.xiaomi.com/install"))
           const body = yield* response.text
@@ -167,6 +167,25 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | ChildPro
         Effect.scoped,
         Effect.orDie,
       )
+
+      const upgradeCurlWindows = Effect.fnUntraced(function* (target: string) {
+        const pid = process.pid
+        const script = [
+          `$pidToWait = ${pid}`,
+          `while (Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }`,
+          `$env:VERSION = '${target}'`,
+          `irm https://mimo.xiaomi.com/install.ps1 | iex`,
+        ].join("; ")
+
+        const child = nodeSpawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ep", "Bypass", "-WindowStyle", "Hidden", "-Command", script], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        })
+        child.unref()
+        log.info("scheduled Windows upgrade", { target, pid, updaterPid: child.pid })
+        return { code: 0 as ChildProcessSpawner.ExitCode, stdout: "", stderr: "" }
+      })
 
       const methodImpl = Effect.fn("Installation.method")(function* () {
         if (process.execPath.includes(path.join(".mimocode", "bin"))) return "curl" as Method
