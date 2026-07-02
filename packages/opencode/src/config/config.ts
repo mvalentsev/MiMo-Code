@@ -556,14 +556,16 @@ export const layer = Layer.effect(
       if (!("path" in options)) return data
 
       yield* Effect.promise(() => resolveLoadedPlugins(data, options.path))
-      if (!data.$schema) {
+      if (!data.$schema || data.$schema === "https://opencode.ai/config.json") {
         data.$schema = "https://mimo.xiaomi.com/mimocode/config.json"
-        const updated = text.replace(/^\s*\{/, '{\n  "$schema": "https://mimo.xiaomi.com/mimocode/config.json",')
-        if (updated !== text) yield* fs.writeFileString(options.path, updated).pipe(Effect.catch(() => Effect.void))
-      } else if (data.$schema === "https://opencode.ai/config.json") {
-        data.$schema = "https://mimo.xiaomi.com/mimocode/config.json"
-        const updated = text.replace("https://opencode.ai/config.json", "https://mimo.xiaomi.com/mimocode/config.json")
-        if (updated !== text) yield* fs.writeFileString(options.path, updated).pipe(Effect.catch(() => Effect.void))
+        const edits = modify(text, ["$schema"], "https://mimo.xiaomi.com/mimocode/config.json", {
+          formattingOptions: { insertSpaces: true, tabSize: 2 },
+          isArrayInsertion: false,
+        })
+        if (edits.length) {
+          const updated = applyEdits(text, edits)
+          yield* fs.writeFileString(options.path, updated).pipe(Effect.catch(() => Effect.void))
+        }
       }
       return data
     })

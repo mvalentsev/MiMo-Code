@@ -2,6 +2,7 @@ export * as TuiConfig from "./tui"
 
 import z from "zod"
 import { mergeDeep, unique } from "remeda"
+import { applyEdits, modify } from "jsonc-parser"
 import { Context, Effect, Fiber, Layer } from "effect"
 import { ConfigParse } from "@/config/parse"
 import * as ConfigPaths from "@/config/paths"
@@ -202,14 +203,13 @@ async function loadFile(filepath: string): Promise<Info> {
     log.warn("failed to load tui config", { path: filepath, error })
     return {} as Info
   })
-  if (parsed && !data.$schema) {
+  if (parsed && (!data.$schema || data.$schema === "https://opencode.ai/tui.json")) {
     data.$schema = TUI_SCHEMA_URL
-    const updated = text.replace(/^\s*\{/, `{\n  "$schema": "${TUI_SCHEMA_URL}",`)
-    if (updated !== text) await Filesystem.write(filepath, updated).catch(() => {})
-  } else if (parsed && data.$schema === "https://opencode.ai/tui.json") {
-    data.$schema = TUI_SCHEMA_URL
-    const updated = text.replace("https://opencode.ai/tui.json", TUI_SCHEMA_URL)
-    if (updated !== text) await Filesystem.write(filepath, updated).catch(() => {})
+    const edits = modify(text, ["$schema"], TUI_SCHEMA_URL, {
+      formattingOptions: { insertSpaces: true, tabSize: 2 },
+      isArrayInsertion: false,
+    })
+    if (edits.length) await Filesystem.write(filepath, applyEdits(text, edits)).catch(() => {})
   }
   return data
 }
