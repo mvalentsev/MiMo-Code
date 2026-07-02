@@ -206,6 +206,10 @@ async function loadFile(filepath: string): Promise<Info> {
     data.$schema = TUI_SCHEMA_URL
     const updated = text.replace(/^\s*\{/, `{\n  "$schema": "${TUI_SCHEMA_URL}",`)
     if (updated !== text) await Filesystem.write(filepath, updated).catch(() => {})
+  } else if (parsed && data.$schema === "https://opencode.ai/tui.json") {
+    data.$schema = TUI_SCHEMA_URL
+    const updated = text.replace("https://opencode.ai/tui.json", TUI_SCHEMA_URL)
+    if (updated !== text) await Filesystem.write(filepath, updated).catch(() => {})
   }
   return data
 }
