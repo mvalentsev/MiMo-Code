@@ -32,7 +32,8 @@ curl -fsSL https://mimo.xiaomi.com/install | bash
 powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"
 
 # Or install via npm (all platforms)
-npm install -g @mimo-ai/cli
+# Mirror registries (e.g. cnpm/taobao) may have delayed platform package sync
+npm install -g @mimo-ai/cli --registry https://registry.npmjs.org
 
 # Run
 mimo
