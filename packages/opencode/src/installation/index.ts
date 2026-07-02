@@ -5,6 +5,7 @@ import { withTransientReadRetry } from "@/util/effect-http-client"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import z from "zod"
 import path from "path"
+import os from "os"
 import { spawn as nodeSpawn } from "child_process"
 import { BusEvent } from "@/bus/bus-event"
 import { Flag } from "../flag/flag"
@@ -170,19 +171,32 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | ChildPro
 
       const upgradeCurlWindows = Effect.fnUntraced(function* (target: string) {
         const pid = process.pid
-        const script = [
+        const targetExe = process.execPath
+        const stageDir = path.join(os.tmpdir(), `mimocode_upgrade_${pid}`)
+
+        // Download new version to staging dir (reuses install.ps1 logic)
+        const downloadResult = yield* run(
+          ["powershell.exe", "-NoProfile", "-NonInteractive", "-ep", "Bypass", "-c", "irm https://mimo.xiaomi.com/install.ps1 | iex"],
+          { env: { MIMOCODE_INSTALL_DIR: stageDir, VERSION: target } },
+        )
+        if (downloadResult.code !== 0) return downloadResult
+
+        // Schedule replacement after exit
+        const stagedExe = path.join(stageDir, "mimo.exe")
+        const replaceScript = [
           `while (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }`,
-          `irm https://mimo.xiaomi.com/install.ps1 | iex`,
+          `for ($i = 0; $i -lt 50; $i++) { try { Move-Item -LiteralPath $env:STAGED_EXE -Destination $env:TARGET_EXE -Force -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 200 } }`,
+          `Remove-Item -LiteralPath $env:STAGE_DIR -Force -Recurse -ErrorAction SilentlyContinue`,
         ].join("; ")
 
-        const child = nodeSpawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ep", "Bypass", "-WindowStyle", "Hidden", "-Command", script], {
+        const child = nodeSpawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ep", "Bypass", "-WindowStyle", "Hidden", "-Command", replaceScript], {
           detached: true,
           stdio: "ignore",
           windowsHide: true,
-          env: { ...process.env, VERSION: target },
+          env: { ...process.env, TARGET_EXE: targetExe, STAGED_EXE: stagedExe, STAGE_DIR: stageDir },
         })
         child.unref()
-        log.info("scheduled Windows upgrade", { target, pid, updaterPid: child.pid })
+        log.info("scheduled Windows upgrade", { target, pid, stageDir, updaterPid: child.pid })
         return { code: 0 as ChildProcessSpawner.ExitCode, stdout: "", stderr: "" }
       })
 

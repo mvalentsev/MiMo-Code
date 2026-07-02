@@ -102,16 +102,24 @@ if (-not $Version) {
 
 # --- Check existing installation ---
 
-$InstallDir = Join-Path $env:USERPROFILE ".mimocode\bin"
+$Staging = $false
+if ($env:MIMOCODE_INSTALL_DIR) {
+    $InstallDir = $env:MIMOCODE_INSTALL_DIR
+    $Staging = $true
+} else {
+    $InstallDir = Join-Path $env:USERPROFILE ".mimocode\bin"
+}
 
-$Existing = Get-Command mimo -ErrorAction SilentlyContinue
-if ($Existing) {
-    $InstalledVersion = & mimo --version 2>$null
-    if ($InstalledVersion -eq $Version) {
-        Write-Host "MiMoCode v$Version is already installed." -ForegroundColor DarkGray
-        Exit-Install 0
+if (-not $Staging) {
+    $Existing = Get-Command mimo -ErrorAction SilentlyContinue
+    if ($Existing) {
+        $InstalledVersion = & mimo --version 2>$null
+        if ($InstalledVersion -eq $Version) {
+            Write-Host "MiMoCode v$Version is already installed." -ForegroundColor DarkGray
+            Exit-Install 0
+        }
+        Write-Host "Installed version: $InstalledVersion" -ForegroundColor DarkGray
     }
-    Write-Host "Installed version: $InstalledVersion" -ForegroundColor DarkGray
 }
 
 # --- Download and install ---
@@ -152,6 +160,8 @@ Move-Item -Path (Join-Path $TmpDir $BinName) -Destination (Join-Path $InstallDir
 Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
 
 # --- Update PATH ---
+
+if ($Staging) { Exit-Install 0 }
 
 $PathUpdated = $false
 if (-not $NoModifyPath) {
