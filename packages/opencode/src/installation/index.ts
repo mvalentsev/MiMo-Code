@@ -222,8 +222,9 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | ChildPro
         // }
 
         if (detectedMethod === "curl") {
+          const curl = process.platform === "win32" ? "curl.exe" : "curl"
           const headers = yield* text([
-            "curl",
+            curl,
             "-sI",
             "https://github.com/XiaomiMiMo/MiMo-Code/releases/latest",
           ])
