@@ -92,7 +92,7 @@ $FdsBase = if ($env:MIMO_FDS_BASE) { $env:MIMO_FDS_BASE.TrimEnd('/') } else {
 
 if (-not $Version) {
     try {
-        $Version = (Invoke-RestMethod "$FdsBase/releases/latest").Trim().TrimStart('v')
+        $Version = (Invoke-WebRequest "$FdsBase/releases/latest" -UseBasicParsing).Content.Trim().TrimStart('v')
     } catch {
         Write-Err "Failed to fetch latest version. Check your network and retry, or specify -Version."
     }
@@ -165,13 +165,22 @@ try {
     Write-Err "Failed to download from $Url`n$($_.Exception.Message)"
 }
 
-# Extract
-Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
+# Extract and install
+try {
+    Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
+} catch {
+    Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
+    Write-Err "Failed to extract archive.`n$($_.Exception.Message)"
+}
 
-# Move binary
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 $BinName = if (Test-Path (Join-Path $TmpDir "mimo.exe")) { "mimo.exe" } else { "mimo" }
-Move-Item -Path (Join-Path $TmpDir $BinName) -Destination (Join-Path $InstallDir "mimo.exe") -Force
+try {
+    Move-Item -Path (Join-Path $TmpDir $BinName) -Destination (Join-Path $InstallDir "mimo.exe") -Force -ErrorAction Stop
+} catch {
+    Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
+    Write-Err "Failed to install binary. If MiMoCode is currently running, please close it and retry.`n$($_.Exception.Message)"
+}
 Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
 
 # --- Update PATH ---
