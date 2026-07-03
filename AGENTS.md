@@ -106,9 +106,3 @@ const table = sqliteTable("session", {
 ## Type Checking
 
 - Always run `bun typecheck` from package directories (e.g., `packages/opencode`), never `tsc` directly.
-
-## Windows Scripts (BOM)
-
-- `install.ps1` requires a UTF-8 BOM (`EF BB BF`) for PowerShell 5.1 direct execution compatibility.
-- Text-level editing tools (edit/write) strip BOM silently. After any edit to `install.ps1`, verify BOM is intact: `file install.ps1` should show "UTF-8 (with BOM)".
-- To restore: `printf '\xEF\xBB\xBF' | cat - install.ps1 > /tmp/bom.ps1 && mv /tmp/bom.ps1 install.ps1`
