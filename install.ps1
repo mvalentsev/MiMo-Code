@@ -100,6 +100,21 @@ if (-not $Version) {
     $Version = $Version.TrimStart('v')
 }
 
+# Warn about old versions that don't support mimo upgrade via install.ps1
+$MajMin = $Version -replace '^(\d+\.\d+\.\d+).*', '$1'
+if ($MajMin -match '^\d+\.\d+\.\d+$') {
+    $parts = $MajMin.Split('.')
+    $semver = [int]$parts[0] * 10000 + [int]$parts[1] * 100 + [int]$parts[2]
+    if ($semver -le 104) {
+        Write-Host ""
+        Write-Host "WARNING: Installing v$Version via install.ps1 will cause 'mimo upgrade' to not function properly." -ForegroundColor Yellow
+        Write-Host "This is a known limitation for versions before 0.1.5." -ForegroundColor Yellow
+        Write-Host ""
+        $confirm = Read-Host "Continue anyway? [y/N]"
+        if ($confirm -ne 'y' -and $confirm -ne 'Y') { Exit-Install 0 }
+    }
+}
+
 # --- Check existing installation ---
 
 $Staging = $false
