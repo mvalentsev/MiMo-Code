@@ -28,6 +28,9 @@ MiMo Auto is built in as a free-for-limited-time channel, so you can start with 
 # One-line install (macOS / Linux)
 curl -fsSL https://mimo.xiaomi.com/install | bash
 
+# One-line install (Windows PowerShell)
+powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"
+
 # Or install via npm (all platforms)
 # Mirror registries (e.g. cnpm/taobao) may have delayed platform package sync
 npm install -g @mimo-ai/cli --registry https://registry.npmjs.org
@@ -35,19 +38,6 @@ npm install -g @mimo-ai/cli --registry https://registry.npmjs.org
 # Run
 mimo
 ```
-
-<details>
-<summary><strong>Windows native install (beta)</strong></summary>
-
-PowerShell one-liner that installs to `%USERPROFILE%\.mimocode\bin` and adds to User PATH:
-
-```powershell
-powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"
-```
-
-**Note:** Installing versions prior to 0.1.5 with this method will cause `mimo upgrade` to not function. If you need to use an older version, please install via npm instead. Once 0.1.5+ is available, this becomes the recommended install method for Windows.
-
-</details>
 
 The first launch guides you through configuration automatically. Supported options:
 - **MiMo Auto (free for a limited time)** — anonymous channel, zero configuration
