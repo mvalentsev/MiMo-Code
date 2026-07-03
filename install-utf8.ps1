@@ -1,4 +1,4 @@
-# Run `bun script/build-install-ps1.ts` to convert install-utf8.ps1 -> install.ps1 (ASCII-safe)
+#@build-remove Run `bun script/build-install-ps1.ts` to convert install-utf8.ps1 -> install.ps1 (ASCII-safe)
 <#
 .SYNOPSIS
     MiMoCode installer for Windows.
