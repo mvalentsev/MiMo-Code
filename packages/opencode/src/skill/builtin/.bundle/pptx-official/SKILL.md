@@ -74,7 +74,7 @@ bun init -y
 
 # Add dependencies
 bun add pptxgenjs                  # core PPTX creation library
-bun add react react-dom sharp      # icon rendering pipeline
+bun add react react-dom sharp      # rasterization (icons + formulas)
 bun add react-icons                # icon library (FA, MD, etc.)
 bun add mathjax-full               # LaTeX formula rendering
 

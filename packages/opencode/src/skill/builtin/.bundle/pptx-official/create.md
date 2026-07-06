@@ -330,7 +330,7 @@ Install (project-local via bun):
 bun add pptxgenjs
 # for icon rasterization:
 bun add react-icons react react-dom sharp
-# for math formulas:
+# for math formulas (sharp is shared with icon pipeline above):
 bun add mathjax-full
 ```
 
@@ -480,6 +480,7 @@ dimensions from the source:
 ```typescript
 import sharp from "sharp";
 
+// maxW, maxH in inches — matches PptxGenJS coordinate system
 async function fitImage(imagePath: string, maxW: number, maxH: number) {
   const meta = await sharp(imagePath).metadata();
   const srcW = meta.width ?? 1;
@@ -619,6 +620,17 @@ const lastOpts = () => ({
 
 **Pattern**: Top line (thick) → header bottom line (thin) → body with no lines → bottom line (thick).
 
+Usage:
+
+```typescript
+const rows = [
+  [{ text: "Method", options: hdrOpts() }, { text: "Acc (%)", options: hdrOpts() }],
+  [{ text: "Ours",   options: cellOpts() }, { text: "94.2",   options: cellOpts() }],
+  [{ text: "Baseline", options: lastOpts() }, { text: "89.1", options: lastOpts() }],
+];
+slide.addTable(rows, { x: 1, y: 1.5, w: 8, colW: [5, 3] });
+```
+
 ### Slide masters
 
 Define once, apply repeatedly:
@@ -662,12 +674,13 @@ const mjDoc = mathjax.document("", {
 async function texToPng(latex: string, scale = 2): Promise<{ data: string; w: number; h: number }> {
   const node = mjDoc.convert(latex, { display: true });
   const svgStr = adaptor.innerHTML(node);  // NOT outerHTML — wraps in <mjx-container>
-  const pngBuf = await sharp(Buffer.from(svgStr), { density: 72 * scale }).png().toBuffer();
+  const density = 72 * scale;
+  const pngBuf = await sharp(Buffer.from(svgStr), { density }).png().toBuffer();
   const meta = await sharp(pngBuf).metadata();
   return {
     data: "image/png;base64," + pngBuf.toString("base64"),
-    w: (meta.width ?? 100) / 96,   // inches at 96 DPI (PPTX coordinate system)
-    h: (meta.height ?? 20) / 96,
+    w: (meta.width ?? 100) / density,   // pixels ÷ render density = inches
+    h: (meta.height ?? 20) / density,
   };
 }
 
@@ -681,6 +694,7 @@ slide.addImage({ data, x: imgX, y: 1.5, w: imgW, h: imgH });
 - Use `adaptor.innerHTML()`, not `adaptor.outerHTML()` — outerHTML wraps the SVG in a `<mjx-container>` element that sharp cannot parse.
 - Use `density` option in sharp to scale SVGs: `sharp(buf, { density: 72 * scale })`. Do NOT use `resize({ scale })` — sharp's `ResizeOptions` has no `scale` property.
 - Get actual pixel dimensions from PNG metadata via `sharp(buf).metadata()` — don't parse SVG viewBox (those are internal coordinate units, not pixels).
+- Divide pixel dimensions by the same density used for rendering to get inches: `meta.width / density`. This keeps `scale` as a pure sharpness knob without changing the on-slide size.
 - `scale=3` (density 216) produces crisp formulas for projection. `scale=2` (density 144) is sufficient for screen viewing.
 
 Install: `bun add mathjax-full sharp`
