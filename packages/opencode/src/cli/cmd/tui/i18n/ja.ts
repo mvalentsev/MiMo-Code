@@ -223,6 +223,9 @@ export const dict = {
   "tui.skill.skill-creator.description": "エージェントスキルの作成・レビュー・改善",
   "tui.skill.research-paper-writing.description": "学術論文の執筆・推敲・査読者視点の批評",
   "tui.skill.design-blueprint.description": "モックアップ着手前に設計仕様（DESIGN.md + Decision Trace）を作成",
+  "tui.skill.auto-research.description": "自律型研究ワークフロー——文献調査・実験ループ・論文再現",
+  "tui.skill.deep-research.description": "深層マルチソース調査、クロスチェック付き引用レポート",
+  "tui.skill.modern-python-toolchain.description": "モダン Python プロジェクト構成：uv, ruff, pyright",
 
   // Language switching
   "tui.command.language.switch.title": "言語を切り替え",

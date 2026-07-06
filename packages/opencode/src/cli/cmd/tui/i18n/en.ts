@@ -211,6 +211,12 @@ export const dict: Record<string, string> = {
   "tui.skill.research-paper-writing.description": "Draft, polish, and reviewer-style critique for academic papers",
   "tui.skill.design-blueprint.description":
     "Produce a design blueprint (DESIGN.md + Decision Trace) before mocking up any visual",
+  "tui.skill.auto-research.description":
+    "Autonomous research workflows — literature surveys, experiment loops, paper reproduction",
+  "tui.skill.deep-research.description":
+    "Deep multi-source investigation with cross-checked, cited reports",
+  "tui.skill.modern-python-toolchain.description":
+    "Modern Python project setup with uv, ruff, and pyright",
 
   // Language switching
   "tui.command.language.switch.title": "Switch language",

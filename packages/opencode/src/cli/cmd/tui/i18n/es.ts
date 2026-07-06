@@ -287,6 +287,12 @@ export const dict = {
   "tui.skill.research-paper-writing.description": "Redacta, pule y critica artículos académicos con perspectiva de revisor",
   "tui.skill.design-blueprint.description":
     "Producir un plano de diseño (DESIGN.md + Decision Trace) antes de crear cualquier mockup",
+  "tui.skill.auto-research.description":
+    "Flujos de investigación autónomos — revisiones de literatura, ciclos de experimentos, reproducción de artículos",
+  "tui.skill.deep-research.description":
+    "Investigación multi-fuente profunda con informe citado y verificado",
+  "tui.skill.modern-python-toolchain.description":
+    "Configuración de proyecto Python moderno con uv, ruff y pyright",
 
   // Language switching
   "tui.command.language.switch.title": "Cambiar idioma",
