@@ -38,7 +38,7 @@ export function skillDescription(
   location?: string,
 ) {
   if (!BUILTIN.has(name)) return fallback
-  if (location && !location.includes("/builtin_skills/") && !location.includes("/mimocode/compose/")) return fallback
+  if (location && !name.startsWith("compose:") && !location.includes("/builtin_skills/")) return fallback
   const translated = t(`tui.skill.${name}.description`)
   return translated || fallback
 }
