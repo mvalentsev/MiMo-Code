@@ -136,6 +136,39 @@ The `/goal` command sets a stopping condition for a session. When the agent trie
 
 Compose mode provides a structured workflow for specs-driven development. It includes built-in skills for planning, execution, code review, TDD, debugging, verification, and merging — orchestrating the full lifecycle from spec to shipped code.
 
+### Builtin Skills
+
+Skills are reusable instruction sets that teach agents how to handle specific tasks (e.g. generating PDFs, writing academic papers, searching arXiv). MiMoCode ships with the following builtin skills:
+
+| Skill | Description |
+|-------|-------------|
+| `arxiv` | Search, read, cite, and analyze arXiv papers |
+| `docx-official` | Produce, read, and transform Word (.docx) files |
+| `pdf-official` | Produce, read, fill, and transform PDF files |
+| `pptx-official` | Author and manipulate PowerPoint (.pptx) decks |
+| `xlsx-official` | Build, clean, and transform spreadsheets (.xlsx/.csv) |
+| `frontend-design` | Visual design guidance for UI work |
+| `html-to-video-pipeline` | HTML-to-MP4 rendering via headless browser + ffmpeg |
+| `research-paper-writing` | Write and polish academic papers (ML/CV/NLP style) |
+| `skill-creator` | Interactive guide for creating and improving agent skills |
+| `self-extend` | Create new tools, hooks, and skills to evolve agent capabilities |
+| `loop` | Schedule recurring prompts on a fixed cadence |
+| `mimocode` | Self-documenting reference for MiMoCode features and config |
+
+**Overriding a builtin skill:** Create a skill with the same `name` in your project (`.mimocode/skills/<name>/SKILL.md`) or personal skill directory (`~/.claude/skills/`, `~/.opencode/skills/`, etc.). User skills discovered later in the scan order override builtins with the same name.
+
+<details>
+<summary><strong>Disabling builtin skills via environment variables</strong></summary>
+
+| Variable | Effect |
+|----------|--------|
+| `MIMOCODE_DISABLE_BUILTIN_SKILLS=true` | Disable all builtin skills |
+| `MIMOCODE_DISABLE_OFFICIAL_SKILLS=true` | Disable only the office/media skills: `docx-official`, `pdf-official`, `pptx-official`, `xlsx-official`, `html-to-video-pipeline` |
+
+When disabled, the corresponding skills are removed from the agent's available skill list entirely — they will not appear in context and cannot be invoked.
+
+</details>
+
 ### Voice Input
 
 Real-time streaming voice input powered by TenVAD and MiMo ASR. Activate with `/voice`, then speak — audio is segmented by pauses and transcribed incrementally into the input. Available for MiMo logged-in users. Requires `sox` (`brew install sox` on macOS, other platforms similar).

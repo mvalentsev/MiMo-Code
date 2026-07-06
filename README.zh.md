@@ -133,6 +133,39 @@ sudo apt install xsel
 
 Compose 模式提供结构化的 specs-driven 开发流程，内置规划、执行、代码审查、TDD、调试、验证、合并等技能——编排从 spec 到交付的完整开发生命周期。
 
+### 内置技能（Builtin Skills）
+
+技能（Skill）是可复用的指令集，教会 Agent 如何处理特定任务（如生成 PDF、写学术论文、搜索 arXiv）。MiMoCode 内置以下技能：
+
+| 技能 | 说明 |
+|------|------|
+| `arxiv` | 搜索、阅读、引用和分析 arXiv 论文 |
+| `docx-official` | 生成、读取和转换 Word (.docx) 文件 |
+| `pdf-official` | 生成、读取、填充和转换 PDF 文件 |
+| `pptx-official` | 制作和操作 PowerPoint (.pptx) 幻灯片 |
+| `xlsx-official` | 构建、清洗和转换电子表格 (.xlsx/.csv) |
+| `frontend-design` | UI 开发的视觉设计指导 |
+| `html-to-video-pipeline` | 通过无头浏览器 + ffmpeg 将 HTML 渲染为 MP4 |
+| `research-paper-writing` | 撰写和打磨学术论文（ML/CV/NLP 风格）|
+| `skill-creator` | 创建和改进 Agent 技能的交互式指南 |
+| `self-extend` | 创建新工具、钩子和技能以扩展 Agent 能力 |
+| `loop` | 按固定周期调度循环提示 |
+| `mimocode` | MiMoCode 功能和配置的自文档参考 |
+
+**覆盖内置技能：** 在项目（`.mimocode/skills/<name>/SKILL.md`）或个人技能目录（`~/.claude/skills/`、`~/.opencode/skills/` 等）中创建同名技能即可。扫描顺序中后发现的用户技能会覆盖同名的内置技能。
+
+<details>
+<summary><strong>通过环境变量禁用内置技能</strong></summary>
+
+| 变量 | 效果 |
+|------|------|
+| `MIMOCODE_DISABLE_BUILTIN_SKILLS=true` | 禁用所有内置技能 |
+| `MIMOCODE_DISABLE_OFFICIAL_SKILLS=true` | 仅禁用办公/媒体类技能：`docx-official`、`pdf-official`、`pptx-official`、`xlsx-official`、`html-to-video-pipeline` |
+
+禁用后，对应技能将从 Agent 可用技能列表中完全移除——不会出现在上下文中，也无法被调用。
+
+</details>
+
 ### 语音输入
 
 基于 TenVAD 和 MiMo ASR 的实时流式语音输入。通过 `/voice` 激活，按停顿分片转写，文本逐段追加到输入框。仅对 MiMo 登录用户可用。需要安装 `sox`（macOS 上 `brew install sox`，其他平台类似）。
