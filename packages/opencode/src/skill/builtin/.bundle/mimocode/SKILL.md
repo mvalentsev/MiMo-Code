@@ -26,7 +26,7 @@ MiMoCode (CLI binary `mimo`) is an agentic coding tool with a terminal UI, built
 | **Dream** | Consolidates recent traces into project memory | `/dream` |
 | **Distill** | Packages repeated manual workflows into skills/subagents/commands | `/distill` |
 | **Scheduled prompts** | Cron/loop: inject a prompt on a schedule or repeating loop (UTC, 5-field) | `cron` tool · `/loop` · `/loops` |
-| **Dynamic workflows** | JS scripts that orchestrate many subagents deterministically (fan-out, pipelines, nesting); built-ins `compose` & `deep-research` | `.mimocode/workflows/*.js` + `workflow` tool |
+| **Dynamic workflows** | JS scripts that orchestrate many subagents deterministically (fan-out, pipelines, nesting); built-ins `compose`, `deep-research` & `fact-check` | `.mimocode/workflows/*.js` + `workflow` tool |
 | **Skills / self-extension** | Add tools, hooks, skills under `.mimocode/` | see the `self-extend` skill |
 | **MCP** | Local & remote Model Context Protocol servers | `mcp` config + `mimo mcp` |
 
@@ -54,7 +54,8 @@ For task-oriented walkthroughs — signing in & choosing a model, making memory 
 
 **Built-in workflows** (runnable by name via the `workflow` tool, no file needed):
 - **`compose`** — deterministic spec→ship pipeline (brainstorm → design → implement/TDD → verify → review → merge), auto-parallelized across per-task worktrees. Pass `args.task`.
-- **`deep-research`** — parallel web search → source extraction → adversarial cross-check → cited report. Pass the question as `args`.
+- **`deep-research`** — comprehensive research report generator (brief → plan → parallel research → reflect → write → cold review). Pass `args: { dir, question, today, depth?, context? }`. Convergent/resumable.
+- **`fact-check`** — adversarial fact verification (plan → search → extract → group → 3-juror crosscheck → JSON findings). Pass the question as `args`.
 
 ## Where Things Live On Disk
 

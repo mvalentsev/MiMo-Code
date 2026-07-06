@@ -140,12 +140,13 @@ Compose mode provides a structured workflow for specs-driven development. It inc
 
 Workflows are deterministic JavaScript scripts that orchestrate multiple agents in a sandboxed runtime. Unlike agent conversations, workflows encode fixed phase sequences with bounded retries and automatic parallelization — fire-and-forget execution with no user interaction required.
 
-MiMoCode ships with two built-in workflows:
+MiMoCode ships with three built-in workflows:
 
 | Workflow | Phases | Description |
 |----------|--------|-------------|
 | `compose` | Brainstorm → Design → Implement → Verify → Review → Report → Merge | Full development pipeline. Auto-parallelizes independent tasks into isolated git worktrees, applies TDD per task, chains structured output between phases. Best for well-defined tasks that decompose into independent subtasks. |
-| `deep-research` | Plan → Search → Extract → Group → Crosscheck → Report | Multi-source research with adversarial fact-checking. Runs parallel web searches, reads the strongest sources, cross-checks each fact with a jury vote, and writes a cited report. |
+| `deep-research` | Brief → Plan → Research → Reflect → Write → Review | Multi-source deep research report generator. Plans independent research angles, runs parallel sub-agents to collect cited findings, reflects on gaps, writes a single coherent Markdown report, then cold-reviews citations. Convergent: resumable via file checkpoints. |
+| `fact-check` | Plan → Search → Extract → Group → Crosscheck → Report | Adversarial fact verification. Runs parallel web searches, extracts checkable facts, groups duplicates, then cross-checks each with a 3-juror adversarial vote. Best for precise claims ("Is X true?"). |
 
 The compose workflow complements the compose agent: use the **workflow** when requirements are clear and tasks split cleanly (deterministic, parallel, non-interactive); use the **agent** when you need to redirect mid-flow or inject judgment between steps (conversational, interactive).
 

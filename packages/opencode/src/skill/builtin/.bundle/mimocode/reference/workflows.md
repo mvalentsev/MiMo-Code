@@ -93,7 +93,8 @@ Use the `workflow` tool (or ask the agent to run one):
 Runnable by `name` without writing a file:
 
 - **`compose`** — full spec→ship pipeline (brainstorm → design → implement (TDD) → verify → review → merge). Pass `args.task`. Auto-parallelizes independent subtasks into per-task worktrees and chains each phase's structured output to the next. Re-running on existing docs reuses them and scopes the fan-out to the actual diff (incremental amend).
-- **`deep-research`** — parallel web search → source extraction → adversarial cross-check → cited report. Pass the refined question as `args`.
+- **`deep-research`** — comprehensive research report generator (brief → plan → parallel sub-agent research → reflect gap-check → single-writer cited Markdown report → cold review). Pass `args: { dir, question, today, depth?, context? }`. Convergent: file checkpoints enable resume after interruption.
+- **`fact-check`** — adversarial fact verification (plan → parallel web search → source extraction → group duplicates → 3-juror crosscheck → structured JSON findings). Pass the question as `args`. Best for verifying specific claims.
 
 ### `compose` workflow vs `compose` agent
 
