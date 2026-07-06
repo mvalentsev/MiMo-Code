@@ -30,13 +30,72 @@ If the task mixes several of these, do them in this order:
 
 ## One-time environment setup
 
+### Prerequisites
+
+If `uv` or `bun` are not yet installed:
+
 ```bash
-python3 -m pip install --upgrade python-pptx lxml Pillow
-# Optional (JS creation surface):
-npm install -g pptxgenjs
-# For PDF/PNG rendering and visual QA:
-#   macOS         brew install --cask libreoffice && brew install poppler
-#   Debian/Ubuntu apt-get install -y libreoffice poppler-utils
+# Install uv (Python package/project manager)
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Windows: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Install bun (TypeScript runtime, replaces Node.js for this workflow)
+# macOS / Linux
+curl -fsSL https://bun.sh/install | bash
+# Windows: powershell -c "irm bun.sh/install.ps1|iex"
+```
+
+### Python (uv)
+
+Python dependencies are managed by `uv`. Do not use `pip` directly.
+
+```bash
+# Initialize project (if no pyproject.toml exists)
+uv init -p 3.12
+
+# Add dependencies
+uv add python-pptx lxml Pillow
+uv add defusedxml                  # safe XML parsing (required for editing)
+```
+
+**Rules:**
+- Never use `pip` — always `uv add` for packages.
+- Never run `python scripts/...` directly — always `uv run python scripts/...`.
+- Don't manually manage environments with `python -m venv` or `source .venv/bin/activate`.
+
+### TypeScript (bun)
+
+For PptxGenJS creation, use `bun` (project-local, not global installs):
+
+```bash
+# Initialize (if no package.json exists)
+bun init -y
+
+# Add dependencies
+bun add pptxgenjs                  # core PPTX creation library
+bun add react react-dom sharp      # icon rendering pipeline
+bun add react-icons                # icon library (FA, MD, etc.)
+bun add mathjax-full               # LaTeX formula rendering
+
+# Type definitions
+bun add -d @types/react @types/react-dom
+```
+
+Run scripts directly as TypeScript — no transpilation needed:
+```bash
+bun run create-ppt.ts
+```
+
+### System dependencies (PDF/PNG rendering)
+
+```bash
+# macOS
+brew install --cask libreoffice
+brew install poppler
+
+# Debian/Ubuntu
+sudo apt-get install -y libreoffice poppler-utils
 ```
 
 Every script under `scripts/` uses only the standard library plus
@@ -48,32 +107,32 @@ bundled or statically linked.
 
 ```bash
 # 1. Extract text from every slide (title, body, notes) — the "what does it say?" query
-python scripts/dump_text.py input.pptx --notes > input.txt
+uv run python scripts/dump_text.py input.pptx --notes > input.txt
 
 # 2. Convert a deck to PDF for review
-python scripts/render_pdf.py input.pptx                     # writes input.pdf next to it
+uv run python scripts/render_pdf.py input.pptx                     # writes input.pdf next to it
 
 # 3. Convert every slide to a PNG (visual QA)
-python scripts/render_slides.py input.pptx --out slides/       # writes slides/slide-1.png, ...
+uv run python scripts/render_slides.py input.pptx --out slides/       # writes slides/slide-1.png, ...
 
 # 4. Grid thumbnail preview (planning which template slide to reuse)
-python scripts/contact_sheet.py input.pptx --cols 3         # writes input.contact-sheet.jpg
+uv run python scripts/contact_sheet.py input.pptx --cols 3         # writes input.contact-sheet.jpg
 
 # 5. Explode a .pptx into readable XML for surgical edits
-python scripts/explode.py input.pptx unpacked/
+uv run python scripts/explode.py input.pptx unpacked/
 
 # 6. Reassemble an exploded tree
-python scripts/assemble.py unpacked/ output.pptx
+uv run python scripts/assemble.py unpacked/ output.pptx
 
 # 7. Drop orphaned slides and unused media before reassembly
-python scripts/prune.py unpacked/
+uv run python scripts/prune.py unpacked/
 
 # 8. Duplicate slide 3, or spin up a new slide from layout 5
-python scripts/insert_slide.py unpacked/ --clone slide3.xml
-python scripts/insert_slide.py unpacked/ --blank-from slideLayout5.xml
+uv run python scripts/insert_slide.py unpacked/ --clone slide3.xml
+uv run python scripts/insert_slide.py unpacked/ --blank-from slideLayout5.xml
 
 # 9. Well-formedness check (ZIP + XML + python-pptx round-trip)
-python scripts/diagnose.py output.pptx
+uv run python scripts/diagnose.py output.pptx
 ```
 
 Every script is a small, self-contained Python file. Read the top of the file
@@ -143,12 +202,12 @@ that survived template fill. Verify explicitly.
 
 1. **Opens cleanly.** No repair dialog, no missing-part warning.
    ```bash
-   python scripts/diagnose.py output.pptx
+   uv run python scripts/diagnose.py output.pptx
    ```
 
 2. **Text integrity.** No placeholder residue and no unfilled `{{token}}`s:
    ```bash
-   python scripts/dump_text.py output.pptx --notes \
+   uv run python scripts/dump_text.py output.pptx --notes \
        | grep -Ei "\{\{|TODO|TBD|lorem|ipsum|xxxx|click to add"
    ```
    Grep must return nothing.
@@ -161,13 +220,13 @@ that survived template fill. Verify explicitly.
    - Icons at the wrong scale (tiny hairline icons, or huge stretched ones).
    - Off-brand colors that snuck in from a copied slide.
    ```bash
-   python scripts/render_slides.py output.pptx --out qa/
+   uv run python scripts/render_slides.py output.pptx --out qa/
    ```
 
 4. **Layout hygiene.** Every non-master slide should reference a real layout,
    not `slideLayout1` by default for a section divider:
    ```bash
-   python -c "
+   uv run python -c "
    from pptx import Presentation
    prs = Presentation('output.pptx')
    for i, s in enumerate(prs.slides, 1):

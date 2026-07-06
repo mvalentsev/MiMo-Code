@@ -36,9 +36,12 @@ right sub-guide.
 Install once:
 
 ```bash
-python3 -m pip install --upgrade python-pptx lxml Pillow
-# For the from-scratch design workflow:
-npm install -g pptxgenjs                 # optional; JS authoring surface
+# Python dependencies (requires uv: curl -LsSf https://astral.sh/uv/install.sh | sh)
+uv add python-pptx lxml Pillow
+
+# For the from-scratch design workflow (requires bun: curl -fsSL https://bun.sh/install | bash)
+bun add pptxgenjs                        # TypeScript authoring surface
+
 # Optional but useful for the QA loop:
 brew install --cask libreoffice          # or: apt-get install libreoffice
 brew install poppler                     # for pdftoppm (PDF → PNG)
@@ -60,9 +63,9 @@ prs.save("review.pptx")
 Run the standard QA loop:
 
 ```bash
-python scripts/diagnose.py       review.pptx           # opens cleanly?
-python scripts/dump_text.py      review.pptx --notes   # what does it say?
-python scripts/render_slides.py  review.pptx --out img/  # visual QA
+uv run python scripts/diagnose.py       review.pptx           # opens cleanly?
+uv run python scripts/dump_text.py      review.pptx --notes   # what does it say?
+uv run python scripts/render_slides.py  review.pptx --out img/  # visual QA
 ```
 
 ## Design goals

@@ -32,7 +32,7 @@ Slides, and LibreOffice open cleanly.
 Install:
 
 ```bash
-python3 -m pip install --upgrade python-pptx Pillow
+uv add python-pptx Pillow
 ```
 
 ### Skeleton
@@ -160,8 +160,9 @@ slide.shapes.add_picture("chart.png", Inches(1), Inches(1.5), Inches(11), Inches
 ```
 
 If you omit `width` and `height`, python-pptx uses the image's native pixel
-dimensions at 96 DPI. That is usually not what you want — pass at least
-one dimension and let the other be derived by aspect ratio:
+dimensions at 96 DPI. That is usually not what you want — **pass only one
+dimension** and let the other be derived to preserve aspect ratio (passing
+both `width` and `height` risks stretching the image):
 
 ```python
 pic = slide.shapes.add_picture("chart.png", Inches(1), Inches(1.5), width=Inches(11))
@@ -323,18 +324,20 @@ master.
 
 ## PptxGenJS recipes
 
-Install once (globally is easiest for CLI use):
+Install (project-local via bun):
 
 ```bash
-npm install -g pptxgenjs
+bun add pptxgenjs
 # for icon rasterization:
-npm install -g react-icons react react-dom sharp
+bun add react-icons react react-dom sharp
+# for math formulas:
+bun add mathjax-full
 ```
 
 ### Skeleton
 
-```javascript
-const pptxgen = require("pptxgenjs");
+```typescript
+import pptxgen from "pptxgenjs";
 
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE";          // 13.33" × 7.5" (16:9)
@@ -348,7 +351,7 @@ slide.addText("Revenue grew 34% on 22% headcount", {
   fontSize: 40, bold: true, color: "FFFFFF", align: "left",
 });
 
-pres.writeFile({ fileName: "review.pptx" });
+await pres.writeFile({ fileName: "review.pptx" });
 ```
 
 Available `pres.layout` values: `LAYOUT_16x9` (10 × 5.625), `LAYOUT_WIDE`
@@ -357,7 +360,7 @@ Available `pres.layout` values: `LAYOUT_16x9` (10 × 5.625), `LAYOUT_WIDE`
 
 ### Text
 
-```javascript
+```typescript
 // simple
 slide.addText("Body copy", {
   x: 0.5, y: 1.5, w: 8, h: 1,
@@ -372,46 +375,82 @@ slide.addText([
   { text: " on flat headcount.", options: {} },
 ], { x: 0.5, y: 2.6, w: 12, h: 0.6, fontSize: 20 });
 
-// multi-paragraph — each run with breakLine: true starts a new line
+// multi-line text (requires breakLine: true)
 slide.addText([
-  { text: "First point", options: { bullet: true, breakLine: true } },
-  { text: "Second point", options: { bullet: true, breakLine: true } },
-  { text: "Third point", options: { bullet: true } },
-], { x: 0.5, y: 3.5, w: 12, h: 3, fontSize: 18 });
+  { text: "Line 1", options: { breakLine: true } },
+  { text: "Line 2", options: { breakLine: true } },
+  { text: "Line 3" },
+], { x: 0.5, y: 3.5, w: 12, h: 2, fontSize: 18 });
+
+// character spacing (use charSpacing, not letterSpacing which is silently ignored)
+slide.addText("SPACED TEXT", { x: 1, y: 1, w: 8, h: 1, charSpacing: 6 });
+
+// text box margin (internal padding)
+slide.addText("Title", {
+  x: 0.5, y: 0.3, w: 9, h: 0.6,
+  margin: 0,  // Use 0 when aligning text with other elements like shapes or icons
+});
 ```
+
+**Tip:** Text boxes have internal margin by default. Set `margin: 0` when
+you need text to align precisely with shapes, lines, or icons at the same
+x-position.
 
 Never mix a hard-coded bullet glyph (`"• Item"`) with `bullet: true`. The
 result is two bullets.
 
 ### Shapes
 
-```javascript
-slide.addShape(pres.shapes.RECTANGLE, {
+```typescript
+slide.addShape(pres.ShapeType.rect, {
   x: 0.5, y: 0.5, w: 3, h: 1.5,
   fill: { color: "F7F5F0" },
   line: { color: "1F3A5F", width: 1 },
 });
 
-slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+slide.addShape(pres.ShapeType.roundRect, {
   x: 0.5, y: 2.5, w: 3, h: 1.5,
   fill: { color: "FFFFFF" },
   line: { type: "none" },
   rectRadius: 0.1,
 });
 
-slide.addShape(pres.shapes.OVAL, {
+slide.addShape(pres.ShapeType.ellipse, {
   x: 4.5, y: 2.5, w: 1.2, h: 1.2,
   fill: { color: "0D9488" },
 });
+
+// with transparency
+slide.addShape(pres.ShapeType.rect, {
+  x: 1, y: 1, w: 3, h: 2,
+  fill: { color: "0088CC", transparency: 50 },
+});
+
+// with shadow
+slide.addShape(pres.ShapeType.rect, {
+  x: 1, y: 1, w: 3, h: 2,
+  fill: { color: "FFFFFF" },
+  shadow: { type: "outer", color: "000000", blur: 6, offset: 2, angle: 135, opacity: 0.15 },
+});
 ```
 
-Colors are 6-character hex strings **without** a leading `#`. Never write
-`#0D9488` or 8-character hex (`0D948880` to encode alpha) — both corrupt
-the output. Use the dedicated `transparency` (0-100) property for opacity.
+Shadow options:
+
+| Property | Type | Range | Notes |
+|----------|------|-------|-------|
+| `type` | string | `"outer"`, `"inner"` | |
+| `color` | string | 6-char hex (e.g. `"000000"`) | No `#` prefix, no 8-char hex — see pitfalls |
+| `blur` | number | 0-100 pt | |
+| `offset` | number | 0-200 pt | **Must be non-negative** — negative values corrupt the file |
+| `angle` | number | 0-359 degrees | Direction the shadow falls (135 = bottom-right, 270 = upward) |
+| `opacity` | number | 0.0-1.0 | Use this for transparency, never encode in color string |
+
+To cast a shadow upward (e.g. on a footer bar), use `angle: 270` with a
+positive offset — do **not** use a negative offset.
 
 ### Images
 
-```javascript
+```typescript
 // from disk
 slide.addImage({ path: "chart.png",  x: 0.5, y: 1.5, w: 6, h: 4 });
 
@@ -433,15 +472,40 @@ Formats that render everywhere: PNG, JPG, GIF. SVG works in modern
 PowerPoint but not consistently in older LibreOffice — rasterize to PNG
 if the deck has to survive every viewer.
 
+**Always check image dimensions before inserting.** Setting both `w` and `h`
+without matching the source aspect ratio will stretch or squash the image.
+Either use `sizing: { type: "contain" }` / `"cover"`, or compute the correct
+dimensions from the source:
+
+```typescript
+import sharp from "sharp";
+
+async function fitImage(imagePath: string, maxW: number, maxH: number) {
+  const meta = await sharp(imagePath).metadata();
+  const srcW = meta.width ?? 1;
+  const srcH = meta.height ?? 1;
+  const scale = Math.min(maxW / srcW, maxH / srcH);
+  return { w: srcW * scale, h: srcH * scale };
+}
+
+// Usage: preserve aspect ratio within a 6" × 4" box
+const { w, h } = await fitImage("photo.png", 6, 4);
+slide.addImage({ path: "photo.png", x: 1, y: 1, w, h });
+```
+
 ### Icons (react-icons → PNG)
 
-```javascript
-const React = require("react");
-const ReactDOMServer = require("react-dom/server");
-const sharp = require("sharp");
-const { FaCheckCircle, FaChartLine } = require("react-icons/fa");
+```typescript
+import React from "react";
+import ReactDOMServer from "react-dom/server";
+import sharp from "sharp";
+import { FaCheckCircle, FaChartLine } from "react-icons/fa";
 
-async function iconPng(Icon, color = "0D9488", pixelSize = 256) {
+async function iconPng(
+  Icon: React.ComponentType<{ color?: string; size?: string }>,
+  color = "0D9488",
+  pixelSize = 256,
+): Promise<string> {
   const svg = ReactDOMServer.renderToStaticMarkup(
     React.createElement(Icon, { color: "#" + color, size: String(pixelSize) })
   );
@@ -449,23 +513,20 @@ async function iconPng(Icon, color = "0D9488", pixelSize = 256) {
   return "image/png;base64," + buf.toString("base64");
 }
 
-// CommonJS has no top-level await — do async work inside a main() and
-// call writeFile there too.
-async function main() {
-  const okData = await iconPng(FaCheckCircle, "0D9488", 256);
-  slide.addImage({ data: okData, x: 0.5, y: 3, w: 0.5, h: 0.5 });
-  await pres.writeFile({ fileName: "review.pptx" });
-}
-main();
+// Usage
+const okData = await iconPng(FaCheckCircle, "0D9488", 256);
+slide.addImage({ data: okData, x: 0.5, y: 3, w: 0.5, h: 0.5 });
 ```
 
 `pixelSize` controls rasterization sharpness, not the on-slide display size.
 Use 256 or higher; the on-slide size is `w`/`h` in inches.
 
+Install: `bun add react-icons react react-dom sharp`
+
 ### Charts
 
-```javascript
-slide.addChart(pres.charts.BAR, [{
+```typescript
+slide.addChart(pres.ChartType.bar, [{
   name: "Revenue",
   labels: ["Q1", "Q2", "Q3", "Q4"],
   values: [3.1, 3.9, 4.6, 5.4],
@@ -484,12 +545,12 @@ slide.addChart(pres.charts.BAR, [{
 });
 ```
 
-Supported chart families: `BAR`, `LINE`, `PIE`, `DOUGHNUT`, `SCATTER`,
-`BUBBLE`, `RADAR`, `AREA`.
+Supported chart families: `pres.ChartType.bar`, `.line`, `.pie`,
+`.doughnut`, `.scatter`, `.bubble`, `.radar`, `.area`.
 
 ### Tables
 
-```javascript
+```typescript
 slide.addTable([
   [
     { text: "Metric", options: { bold: true, fill: { color: "1F3A5F" }, color: "FFFFFF" } },
@@ -505,11 +566,64 @@ slide.addTable([
 });
 ```
 
+#### Border tuple order
+
+When using per-side borders, the tuple order is **`[top, right, bottom, left]`** (clockwise from top):
+
+```typescript
+const bNone = { pt: 0, color: "FFFFFF" };
+type Border = { pt: number; color: string };
+const bTuple = (...args: Border[]) => args as [Border, Border, Border, Border];
+
+// Header row: thick top, thin bottom
+{
+  border: bTuple(
+    { pt: 1.5, color: "333333" },  // top — thick
+    bNone,                          // right — none
+    { pt: 0.5, color: "333333" },  // bottom — thin
+    bNone,                          // left — none
+  )
+}
+```
+
+#### Three-line table (academic style)
+
+A common academic/benchmark table style with only three horizontal lines:
+
+```typescript
+const bNone = { pt: 0, color: "FFFFFF" };
+type Border = { pt: number; color: string };
+const bTuple = (...args: Border[]) => args as [Border, Border, Border, Border];
+
+// 1. Header: thick top + thin bottom
+const hdrOpts = () => ({
+  bold: true, fontSize: 11, fontFace: "Calibri", color: "333333",
+  align: "center" as const, valign: "middle" as const,
+  border: bTuple({ pt: 1.5, color: "333333" }, bNone, { pt: 0.5, color: "333333" }, bNone),
+});
+
+// 2. Body cells: no borders
+const cellOpts = () => ({
+  fontSize: 11, fontFace: "Calibri", color: "555555",
+  align: "center" as const, valign: "middle" as const,
+  border: bTuple(bNone, bNone, bNone, bNone),
+});
+
+// 3. Last row: thick bottom
+const lastOpts = () => ({
+  fontSize: 11, fontFace: "Calibri", color: "555555",
+  align: "center" as const, valign: "middle" as const,
+  border: bTuple(bNone, bNone, { pt: 1.5, color: "333333" }, bNone),
+});
+```
+
+**Pattern**: Top line (thick) → header bottom line (thin) → body with no lines → bottom line (thick).
+
 ### Slide masters
 
 Define once, apply repeatedly:
 
-```javascript
+```typescript
 pres.defineSlideMaster({
   title: "SECTION_DIVIDER",
   background: { color: "1F3A5F" },
@@ -525,6 +639,52 @@ const s = pres.addSlide({ masterName: "SECTION_DIVIDER" });
 s.addText("Part 2 — What's Next", { placeholder: "title" });
 ```
 
+### Math formulas (MathJax → PNG)
+
+Use `mathjax-full` to render LaTeX formulas to SVG, then rasterize to PNG via `sharp`.
+
+```typescript
+import { mathjax } from "mathjax-full/js/mathjax.js";
+import { TeX } from "mathjax-full/js/input/tex.js";
+import { SVG } from "mathjax-full/js/output/svg.js";
+import { liteAdaptor } from "mathjax-full/js/adaptors/liteAdaptor.js";
+import { RegisterHTMLHandler } from "mathjax-full/js/handlers/html.js";
+import sharp from "sharp";
+
+const adaptor = liteAdaptor();
+RegisterHTMLHandler(adaptor);
+
+const mjDoc = mathjax.document("", {
+  InputJax: new TeX(),
+  OutputJax: new SVG({ fontCache: "none" }),
+});
+
+async function texToPng(latex: string, scale = 2): Promise<{ data: string; w: number; h: number }> {
+  const node = mjDoc.convert(latex, { display: true });
+  const svgStr = adaptor.innerHTML(node);  // NOT outerHTML — wraps in <mjx-container>
+  const pngBuf = await sharp(Buffer.from(svgStr), { density: 72 * scale }).png().toBuffer();
+  const meta = await sharp(pngBuf).metadata();
+  return {
+    data: "image/png;base64," + pngBuf.toString("base64"),
+    w: (meta.width ?? 100) / 96,   // inches at 96 DPI (PPTX coordinate system)
+    h: (meta.height ?? 20) / 96,
+  };
+}
+
+// Usage
+const { data, w: imgW, h: imgH } = await texToPng("E = mc^2", 3);
+const imgX = 0.5 + (9.0 - imgW) / 2;  // center horizontally
+slide.addImage({ data, x: imgX, y: 1.5, w: imgW, h: imgH });
+```
+
+**Key notes:**
+- Use `adaptor.innerHTML()`, not `adaptor.outerHTML()` — outerHTML wraps the SVG in a `<mjx-container>` element that sharp cannot parse.
+- Use `density` option in sharp to scale SVGs: `sharp(buf, { density: 72 * scale })`. Do NOT use `resize({ scale })` — sharp's `ResizeOptions` has no `scale` property.
+- Get actual pixel dimensions from PNG metadata via `sharp(buf).metadata()` — don't parse SVG viewBox (those are internal coordinate units, not pixels).
+- `scale=3` (density 216) produces crisp formulas for projection. `scale=2` (density 144) is sufficient for screen viewing.
+
+Install: `bun add mathjax-full sharp`
+
 ### PptxGenJS pitfalls (things that silently corrupt the file)
 
 - **`#` prefix on hex colors** — `color: "#FF0000"` corrupts the file.
@@ -536,17 +696,64 @@ s.addText("Part 2 — What's Next", { placeholder: "title" });
   objects in-place (converting inches to EMU, hex to Office xml). Sharing
   one `{ shadow: {...} }` between two calls corrupts the second call.
   Factory the object:
-  ```javascript
+  ```typescript
   const makeShadow = () => ({ type: "outer", color: "000000", blur: 6, offset: 2, angle: 135, opacity: 0.15 });
-  slide.addShape(pres.shapes.RECTANGLE, { x:1, y:1, w:3, h:2, fill:{color:"FFFFFF"}, shadow: makeShadow() });
-  slide.addShape(pres.shapes.RECTANGLE, { x:5, y:1, w:3, h:2, fill:{color:"FFFFFF"}, shadow: makeShadow() });
+  slide.addShape(pres.ShapeType.rect, { x:1, y:1, w:3, h:2, fill:{color:"FFFFFF"}, shadow: makeShadow() });
+  slide.addShape(pres.ShapeType.rect, { x:5, y:1, w:3, h:2, fill:{color:"FFFFFF"}, shadow: makeShadow() });
+  ```
+- **Do NOT use `bullet: true`** — PptxGenJS's built-in bullet adds
+  excessive, uncontrollable spacing between the bullet character and text,
+  especially with mixed CJK/Latin content. Instead, create small filled
+  circles as custom bullet shapes:
+  ```typescript
+  function addBulletItem(
+    slide: pptxgen.Slide, pres: pptxgen,
+    text: string, x: number, y: number, w: number, h: number,
+    fontSize = 12,
+  ) {
+    const dotSize = 0.1;
+    slide.addShape(pres.ShapeType.ellipse, {
+      x, y: y + (h - dotSize) / 2, w: dotSize, h: dotSize,
+      fill: { color: "8C1515" },  // your accent color
+    });
+    slide.addText(text, {
+      x: x + 0.18, y, w: w - 0.18, h,
+      fontSize, fontFace: "Arial", color: "2D2D2D",
+      valign: "middle", margin: 0,
+    });
+  }
+  ```
+- **Avoid `lineSpacing` with bullets** — causes excessive gaps between
+  items. Use `paraSpaceAfter` instead for controlled spacing.
+- **`ROUNDED_RECTANGLE` with accent borders** — rectangular overlay bars
+  (used as left-side accents) won't cover rounded corners. Use `RECTANGLE`
+  instead when you need accent-bar overlays:
+  ```typescript
+  // WRONG: accent bar doesn't cover rounded corners
+  slide.addShape(pres.ShapeType.roundRect, { x: 1, y: 1, w: 3, h: 1.5, fill: { color: "FFFFFF" } });
+  slide.addShape(pres.ShapeType.rect, { x: 1, y: 1, w: 0.08, h: 1.5, fill: { color: "0891B2" } });
+
+  // CORRECT: use RECTANGLE for clean alignment
+  slide.addShape(pres.ShapeType.rect, { x: 1, y: 1, w: 3, h: 1.5, fill: { color: "FFFFFF" } });
+  slide.addShape(pres.ShapeType.rect, { x: 1, y: 1, w: 0.08, h: 1.5, fill: { color: "0891B2" } });
   ```
 - **Unicode bullet glyphs with `bullet: true`** — you get a double bullet.
   Pick one.
 - **`rectRadius` on `RECTANGLE`** — ignored silently. Use
-  `ROUNDED_RECTANGLE`.
+  `ROUNDED_RECTANGLE` (`pres.ShapeType.roundRect`).
 - **Negative shadow `offset`** — corrupts the file. Cast the shadow upward
   with `angle: 270` and a **positive** offset.
+- **Each presentation needs a fresh instance** — don't reuse `pptxgen()`
+  objects across multiple decks.
+
+### Quick reference (PptxGenJS enums)
+
+- **Shapes**: `pres.ShapeType.rect`, `.ellipse`, `.line`, `.roundRect`
+- **Charts**: `pres.ChartType.bar`, `.line`, `.pie`, `.doughnut`, `.scatter`, `.bubble`, `.radar`, `.area`
+- **Layouts**: `LAYOUT_16x9` (10"×5.625"), `LAYOUT_WIDE` (13.333"×7.5"), `LAYOUT_16x10`, `LAYOUT_4x3`
+- **Table border tuple**: `[top, right, bottom, left]` (clockwise from top)
+- **Math formulas**: `mathjax-full` → `mjDoc.convert(latex)` → `adaptor.innerHTML()` → sharp PNG
+- **SVG scaling**: `sharp(buf, { density: 72 * scale })` — don't use `resize({ scale })`
 
 ---
 
