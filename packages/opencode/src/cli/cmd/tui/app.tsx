@@ -1004,14 +1004,20 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
 
   event.on("installation.update-available", async (evt) => {
     const version = evt.properties.version
+    const method = evt.properties.method
+    const isPkgManager = method === "npm" || method === "pnpm" || method === "bun"
 
     const skipped = kv.get("skipped_version")
     if (skipped && !semver.gt(version, skipped)) return
 
+    const confirmMsg = isPkgManager
+      ? t("tui.toast.update_available.confirm", { version }) + "\n" + t("tui.toast.native_installer_tip")
+      : t("tui.toast.update_available.confirm", { version })
+
     const choice = await DialogConfirm.show(
       dialog,
       t("tui.toast.update_available.title"),
-      t("tui.toast.update_available.confirm", { version }),
+      confirmMsg,
       "skip",
     )
 
@@ -1050,10 +1056,14 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
   })
 
   event.on("installation.updated", (evt) => {
+    const isPkgManager = evt.properties.method === "npm" || evt.properties.method === "pnpm" || evt.properties.method === "bun"
+    const msg = isPkgManager
+      ? t("tui.toast.updated.message", { version: evt.properties.version }) + " " + t("tui.toast.native_installer_tip")
+      : t("tui.toast.updated.message", { version: evt.properties.version })
     toast.show({
       variant: "success",
       title: t("tui.toast.updated.title"),
-      message: t("tui.toast.updated.message", { version: evt.properties.version }),
+      message: msg,
       duration: 10000,
     })
   })

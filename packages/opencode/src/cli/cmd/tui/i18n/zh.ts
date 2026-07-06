@@ -300,6 +300,7 @@ export const dict = {
   "tui.toast.update_available.success": "已更新到 MiMoCode v{{version}}，请重启应用。",
   "tui.toast.updated.title": "已自动更新",
   "tui.toast.updated.message": "已自动应用补丁更新：v{{version}}。重启后生效。可在配置中设置 autoupdate: false 关闭自动更新。",
+  "tui.toast.native_installer_tip": "提示：推荐使用原生安装方式（curl/PowerShell）以获得更快的更新体验。",
   "tui.sidebar.instructions": "指令文件",
   "tui.sidebar.cwd": "工作目录",
   "tui.toast.unknown_error": "发生未知错误",

@@ -26,12 +26,14 @@ export const Event = {
     "installation.updated",
     z.object({
       version: z.string(),
+      method: z.string().optional(),
     }),
   ),
   UpdateAvailable: BusEvent.define(
     "installation.update-available",
     z.object({
       version: z.string(),
+      method: z.string().optional(),
     }),
   ),
 }
