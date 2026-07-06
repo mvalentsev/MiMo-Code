@@ -1826,6 +1826,10 @@ export type ProviderConfig = {
       }
     }
   }
+  /**
+   * When true, show only the models listed in this provider's `models` map and hide the rest of the catalog (acts as an implicit whitelist). Defaults to false: `models` only augments/overrides the catalog without filtering it.
+   */
+  only_configured_models?: boolean
 }
 
 export type McpLocalConfig = {
@@ -6649,6 +6653,7 @@ export type AppSkillsResponses = {
     location: string
     content: string
     hidden?: boolean
+    bundled?: boolean
   }>
 }
 

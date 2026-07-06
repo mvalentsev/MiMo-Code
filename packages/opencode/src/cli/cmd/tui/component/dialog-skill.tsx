@@ -31,7 +31,7 @@ export function DialogSkill(props: DialogSkillProps) {
     const maxWidth = Math.max(0, ...list.map((s) => s.name.length))
     return list.map((skill) => ({
       title: skill.name.padEnd(maxWidth),
-      description: skillDescription(lang.t, skill.name, skill.description, skill.location)?.replace(/\s+/g, " ").trim(),
+      description: skillDescription(lang.t, skill.name, skill.description, skill.bundled)?.replace(/\s+/g, " ").trim(),
       value: skill.name,
       category: "Skills",
       onSelect: () => {
