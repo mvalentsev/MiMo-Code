@@ -217,6 +217,20 @@ export const dict: Record<string, string> = {
     "Deep multi-source investigation with cross-checked, cited reports",
   "tui.skill.modern-python-toolchain.description":
     "Modern Python project setup with uv, ruff, and pyright",
+  "tui.skill.compose:ask.description": "Ask the user for decisions or clarifications",
+  "tui.skill.compose:brainstorm.description": "Explore requirements and design before implementation",
+  "tui.skill.compose:debug.description": "Systematic debugging before proposing fixes",
+  "tui.skill.compose:execute.description": "Execute an implementation plan with review checkpoints",
+  "tui.skill.compose:feedback.description": "Handle code review feedback with technical rigor",
+  "tui.skill.compose:merge.description": "Integrate completed work — merge, PR, or cleanup",
+  "tui.skill.compose:parallel.description": "Run independent tasks concurrently",
+  "tui.skill.compose:plan.description": "Create a step-by-step implementation plan from spec",
+  "tui.skill.compose:report.description": "Consolidate implementation into a final-state report",
+  "tui.skill.compose:review.description": "Verify work meets requirements before merging",
+  "tui.skill.compose:subagent.description": "Dispatch independent tasks to fresh sub-agents",
+  "tui.skill.compose:tdd.description": "Test-driven development — write tests before code",
+  "tui.skill.compose:verify.description": "Run verification and confirm passing output",
+  "tui.skill.compose:worktree.description": "Create an isolated workspace for feature work",
 
   // Language switching
   "tui.command.language.switch.title": "Switch language",

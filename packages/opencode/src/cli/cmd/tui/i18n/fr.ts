@@ -281,6 +281,20 @@ export const dict = {
     "Investigation multi-sources approfondie avec rapport cité et vérifié",
   "tui.skill.modern-python-toolchain.description":
     "Configuration de projet Python moderne avec uv, ruff et pyright",
+  "tui.skill.compose:ask.description": "Demander une décision ou clarification à l'utilisateur",
+  "tui.skill.compose:brainstorm.description": "Explorer les besoins et la conception avant l'implémentation",
+  "tui.skill.compose:debug.description": "Débogage systématique avant de proposer un correctif",
+  "tui.skill.compose:execute.description": "Exécuter un plan d'implémentation avec points de revue",
+  "tui.skill.compose:feedback.description": "Traiter les retours de revue de code avec rigueur technique",
+  "tui.skill.compose:merge.description": "Intégrer le travail terminé — merge, PR ou nettoyage",
+  "tui.skill.compose:parallel.description": "Exécuter des tâches indépendantes en parallèle",
+  "tui.skill.compose:plan.description": "Créer un plan d'implémentation étape par étape",
+  "tui.skill.compose:report.description": "Consolider l'implémentation en rapport final",
+  "tui.skill.compose:review.description": "Vérifier la conformité aux exigences avant merge",
+  "tui.skill.compose:subagent.description": "Déléguer des tâches indépendantes à des sous-agents",
+  "tui.skill.compose:tdd.description": "Développement piloté par les tests — tests avant le code",
+  "tui.skill.compose:verify.description": "Lancer la vérification et confirmer la réussite",
+  "tui.skill.compose:worktree.description": "Créer un espace de travail isolé pour le développement",
 
   // Language switching
   "tui.command.language.switch.title": "Changer de langue",
