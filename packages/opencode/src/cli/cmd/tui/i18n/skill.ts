@@ -5,6 +5,5 @@ export function skillDescription(
   bundled?: boolean,
 ) {
   if (!bundled) return fallback
-  const translated = t(`tui.skill.${name}.description`)
-  return translated || fallback
+  return t(`tui.skill.${name}.description`) || fallback
 }

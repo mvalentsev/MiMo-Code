@@ -100,10 +100,15 @@ const add = Effect.fnUntraced(function* (state: State, match: string, bundledRoo
   const parsed = Info.pick({ name: true, description: true, hidden: true }).safeParse(md.data)
   if (!parsed.success) return
 
-  if (state.skills[parsed.data.name]) {
+  const isBundled = bundledRoots.some((root) => match.startsWith(root))
+  const existing = state.skills[parsed.data.name]
+
+  if (existing) {
+    // User overrides always win: bundled must not overwrite non-bundled
+    if (isBundled && !existing.bundled) return
     log.warn("duplicate skill name", {
       name: parsed.data.name,
-      existing: state.skills[parsed.data.name].location,
+      existing: existing.location,
       duplicate: match,
     })
   }
@@ -115,7 +120,7 @@ const add = Effect.fnUntraced(function* (state: State, match: string, bundledRoo
     location: match,
     content: md.content,
     hidden: parsed.data.hidden,
-    bundled: bundledRoots.some((root) => match.startsWith(root)) || undefined,
+    bundled: isBundled || undefined,
   }
 })
 
