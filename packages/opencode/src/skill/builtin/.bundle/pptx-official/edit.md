@@ -19,8 +19,8 @@ look and asks you to swap the content.
 ### Discover what's in the template
 
 ```bash
-uv run python scripts/contact_sheet.py template.pptx --cols 3
-uv run python scripts/dump_text.py template.pptx --notes --numbered > tpl.txt
+uv run scripts/contact_sheet.py template.pptx --cols 3
+uv run scripts/dump_text.py template.pptx --notes --numbered > tpl.txt
 ```
 
 Open `template.contact-sheet.jpg` next to `tpl.txt`. Now you can see the
@@ -261,7 +261,7 @@ open cleanly.
 ### Explode
 
 ```bash
-uv run python scripts/explode.py input.pptx unpacked/
+uv run scripts/explode.py input.pptx unpacked/
 ```
 
 You get a directory tree like:
@@ -321,10 +321,10 @@ Two modes:
 ```bash
 # Duplicate an existing slide (copies the slide XML and its rels; the
 # notesSlide part is *shared* with the original, not copied)
-uv run python scripts/insert_slide.py unpacked/ --clone slide3.xml
+uv run scripts/insert_slide.py unpacked/ --clone slide3.xml
 
 # Build a new blank slide from a layout
-uv run python scripts/insert_slide.py unpacked/ --blank-from slideLayout5.xml
+uv run scripts/insert_slide.py unpacked/ --blank-from slideLayout5.xml
 ```
 
 Both modes print the new slide's `<p:sldId>` element. Paste it into
@@ -339,7 +339,7 @@ The `id` and `rId` are guaranteed unique by the script.
 ### `prune.py`
 
 ```bash
-uv run python scripts/prune.py unpacked/
+uv run scripts/prune.py unpacked/
 ```
 
 Drops any slide not referenced by `<p:sldIdLst>`, its `_rels/*.xml.rels`,
@@ -423,8 +423,8 @@ appear on the slide surface.
 ### Reassemble
 
 ```bash
-uv run python scripts/assemble.py unpacked/ output.pptx
-uv run python scripts/diagnose.py output.pptx
+uv run scripts/assemble.py unpacked/ output.pptx
+uv run scripts/diagnose.py output.pptx
 ```
 
 `assemble.py` writes `[Content_Types].xml` first (matching PowerPoint's
@@ -496,9 +496,9 @@ The scheme colors themselves are in `ppt/theme/theme1.xml` under
 Always run the QA loop from `SKILL.md`:
 
 ```bash
-uv run python scripts/diagnose.py output.pptx
-uv run python scripts/dump_text.py output.pptx --notes | grep -Ei "\{\{|TODO|TBD|lorem|click to add"
-uv run python scripts/render_slides.py output.pptx --out qa/
+uv run scripts/diagnose.py output.pptx
+uv run scripts/dump_text.py output.pptx --notes | grep -Ei "\{\{|TODO|TBD|lorem|click to add"
+uv run scripts/render_slides.py output.pptx --out qa/
 ```
 
 Assume something is wrong. The most common failure is placeholder text

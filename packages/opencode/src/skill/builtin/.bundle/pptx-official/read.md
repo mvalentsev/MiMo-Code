@@ -14,11 +14,11 @@ tree is slower than grepping a text export.
 ## Plain-text extraction
 
 ```bash
-uv run python scripts/dump_text.py input.pptx                     # slides only, one paragraph per line
-uv run python scripts/dump_text.py input.pptx --notes             # include speaker notes
-uv run python scripts/dump_text.py input.pptx --numbered  # "1: " prefix per slide
-uv run python scripts/dump_text.py input.pptx --format md          # H1 per slide, bullets preserved
-uv run python scripts/dump_text.py input.pptx --tables            # include table cells (tab-sep)
+uv run scripts/dump_text.py input.pptx                     # slides only, one paragraph per line
+uv run scripts/dump_text.py input.pptx --notes             # include speaker notes
+uv run scripts/dump_text.py input.pptx --numbered  # "1: " prefix per slide
+uv run scripts/dump_text.py input.pptx --format md          # H1 per slide, bullets preserved
+uv run scripts/dump_text.py input.pptx --tables            # include table cells (tab-sep)
 ```
 
 The script has no hard dependency on `python-pptx` — with only the
@@ -216,10 +216,10 @@ Two ways to get images out:
 ## Thumbnails (visual preview grid)
 
 ```bash
-uv run python scripts/contact_sheet.py input.pptx                    # writes input.contact-sheet.jpg
-uv run python scripts/contact_sheet.py input.pptx --cols 4           # 4 slides per row
-uv run python scripts/contact_sheet.py input.pptx --limit 24           # cap to first 24 slides
-uv run python scripts/contact_sheet.py input.pptx --out preview.jpg  # explicit output path
+uv run scripts/contact_sheet.py input.pptx                    # writes input.contact-sheet.jpg
+uv run scripts/contact_sheet.py input.pptx --cols 4           # 4 slides per row
+uv run scripts/contact_sheet.py input.pptx --limit 24           # cap to first 24 slides
+uv run scripts/contact_sheet.py input.pptx --out preview.jpg  # explicit output path
 ```
 
 Under the hood: `soffice --convert-to pdf` → `pdftoppm` → Pillow tiles
@@ -230,7 +230,7 @@ looks like a section divider?"). For serious visual QA of a generated
 deck, render at full resolution:
 
 ```bash
-uv run python scripts/render_slides.py output.pptx --out qa/ --dpi 150
+uv run scripts/render_slides.py output.pptx --out qa/ --dpi 150
 open qa/slide-*.png   # macOS; pdftoppm zero-pads numbers on decks ≥10 slides
 ```
 
@@ -238,12 +238,12 @@ open qa/slide-*.png   # macOS; pdftoppm zero-pads numbers on decks ≥10 slides
 
 ```bash
 # whole deck to a single PDF
-uv run python scripts/render_pdf.py input.pptx                    # writes input.pdf
+uv run scripts/render_pdf.py input.pptx                    # writes input.pdf
 
 # every slide to its own PNG
-uv run python scripts/render_slides.py input.pptx --out slides/       # slides/slide-1.png, ... (zero-padded on decks ≥10 slides)
-uv run python scripts/render_slides.py input.pptx --out slides/ --dpi 200
-uv run python scripts/render_slides.py input.pptx --out slides/ --first 3 --last 3
+uv run scripts/render_slides.py input.pptx --out slides/       # slides/slide-1.png, ... (zero-padded on decks ≥10 slides)
+uv run scripts/render_slides.py input.pptx --out slides/ --dpi 200
+uv run scripts/render_slides.py input.pptx --out slides/ --first 3 --last 3
 ```
 
 `render_slides.py` renders via LibreOffice → PDF, then Poppler's `pdftoppm`
@@ -253,7 +253,7 @@ as optional dependencies in `SKILL.md`.
 ## Detecting broken files
 
 ```bash
-uv run python scripts/diagnose.py input.pptx
+uv run scripts/diagnose.py input.pptx
 ```
 
 Failure modes:
@@ -275,7 +275,7 @@ optional, both help.
 If you want to see the raw XML of every slide:
 
 ```bash
-uv run python scripts/explode.py input.pptx unpacked/
+uv run scripts/explode.py input.pptx unpacked/
 ls unpacked/ppt/slides/          # slide1.xml, slide2.xml, ...
 ```
 

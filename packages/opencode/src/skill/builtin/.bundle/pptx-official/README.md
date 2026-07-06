@@ -63,9 +63,9 @@ prs.save("review.pptx")
 Run the standard QA loop:
 
 ```bash
-uv run python scripts/diagnose.py       review.pptx           # opens cleanly?
-uv run python scripts/dump_text.py      review.pptx --notes   # what does it say?
-uv run python scripts/render_slides.py  review.pptx --out img/  # visual QA
+uv run scripts/diagnose.py       review.pptx           # opens cleanly?
+uv run scripts/dump_text.py      review.pptx --notes   # what does it say?
+uv run scripts/render_slides.py  review.pptx --out img/  # visual QA
 ```
 
 ## Design goals

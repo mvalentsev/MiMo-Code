@@ -68,7 +68,7 @@ uvx TOOL ARGS                 # Run a tool without installing it
 ### Rules
 
 - **Never use `pip`** in uv projects — always `uv add` for packages.
-- **Never run `python script.py` directly** — always `uv run python script.py` or `uv run script.py` to ensure the correct environment.
+- **Never run `python script.py` directly** — always `uv run script.py` to ensure the correct environment. For one-liners use `uv run python -c "..."`.
 - **Don't manually manage environments** with `python -m venv` or `source .venv/bin/activate` — uv handles this automatically.
 - `uvx` runs tools from PyPI by package name without installing them permanently.
 

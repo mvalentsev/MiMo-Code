@@ -61,7 +61,7 @@ uv add defusedxml                  # safe XML parsing (required for editing)
 
 **Rules:**
 - Never use `pip` — always `uv add` for packages.
-- Never run `python scripts/...` directly — always `uv run python scripts/...`.
+- Never run `python scripts/...` directly — always `uv run scripts/...`.
 - Don't manually manage environments with `python -m venv` or `source .venv/bin/activate`.
 
 ### TypeScript (bun)
@@ -107,32 +107,32 @@ bundled or statically linked.
 
 ```bash
 # 1. Extract text from every slide (title, body, notes) — the "what does it say?" query
-uv run python scripts/dump_text.py input.pptx --notes > input.txt
+uv run scripts/dump_text.py input.pptx --notes > input.txt
 
 # 2. Convert a deck to PDF for review
-uv run python scripts/render_pdf.py input.pptx                     # writes input.pdf next to it
+uv run scripts/render_pdf.py input.pptx                     # writes input.pdf next to it
 
 # 3. Convert every slide to a PNG (visual QA)
-uv run python scripts/render_slides.py input.pptx --out slides/       # writes slides/slide-1.png, ...
+uv run scripts/render_slides.py input.pptx --out slides/       # writes slides/slide-1.png, ...
 
 # 4. Grid thumbnail preview (planning which template slide to reuse)
-uv run python scripts/contact_sheet.py input.pptx --cols 3         # writes input.contact-sheet.jpg
+uv run scripts/contact_sheet.py input.pptx --cols 3         # writes input.contact-sheet.jpg
 
 # 5. Explode a .pptx into readable XML for surgical edits
-uv run python scripts/explode.py input.pptx unpacked/
+uv run scripts/explode.py input.pptx unpacked/
 
 # 6. Reassemble an exploded tree
-uv run python scripts/assemble.py unpacked/ output.pptx
+uv run scripts/assemble.py unpacked/ output.pptx
 
 # 7. Drop orphaned slides and unused media before reassembly
-uv run python scripts/prune.py unpacked/
+uv run scripts/prune.py unpacked/
 
 # 8. Duplicate slide 3, or spin up a new slide from layout 5
-uv run python scripts/insert_slide.py unpacked/ --clone slide3.xml
-uv run python scripts/insert_slide.py unpacked/ --blank-from slideLayout5.xml
+uv run scripts/insert_slide.py unpacked/ --clone slide3.xml
+uv run scripts/insert_slide.py unpacked/ --blank-from slideLayout5.xml
 
 # 9. Well-formedness check (ZIP + XML + python-pptx round-trip)
-uv run python scripts/diagnose.py output.pptx
+uv run scripts/diagnose.py output.pptx
 ```
 
 Every script is a small, self-contained Python file. Read the top of the file
@@ -202,12 +202,12 @@ that survived template fill. Verify explicitly.
 
 1. **Opens cleanly.** No repair dialog, no missing-part warning.
    ```bash
-   uv run python scripts/diagnose.py output.pptx
+   uv run scripts/diagnose.py output.pptx
    ```
 
 2. **Text integrity.** No placeholder residue and no unfilled `{{token}}`s:
    ```bash
-   uv run python scripts/dump_text.py output.pptx --notes \
+   uv run scripts/dump_text.py output.pptx --notes \
        | grep -Ei "\{\{|TODO|TBD|lorem|ipsum|xxxx|click to add"
    ```
    Grep must return nothing.
@@ -220,7 +220,7 @@ that survived template fill. Verify explicitly.
    - Icons at the wrong scale (tiny hairline icons, or huge stretched ones).
    - Off-brand colors that snuck in from a copied slide.
    ```bash
-   uv run python scripts/render_slides.py output.pptx --out qa/
+   uv run scripts/render_slides.py output.pptx --out qa/
    ```
 
 4. **Layout hygiene.** Every non-master slide should reference a real layout,
