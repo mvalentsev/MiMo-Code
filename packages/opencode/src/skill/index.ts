@@ -106,11 +106,15 @@ const add = Effect.fnUntraced(function* (state: State, match: string, bundledRoo
   if (existing) {
     // User overrides always win: bundled must not overwrite non-bundled
     if (isBundled && !existing.bundled) return
-    log.warn("duplicate skill name", {
-      name: parsed.data.name,
-      existing: existing.location,
-      duplicate: match,
-    })
+    if (!isBundled && existing.bundled) {
+      log.info("user skill overrides bundled", { name: parsed.data.name, location: match })
+    } else {
+      log.warn("duplicate skill name", {
+        name: parsed.data.name,
+        existing: existing.location,
+        duplicate: match,
+      })
+    }
   }
 
   state.dirs.add(path.dirname(match))
