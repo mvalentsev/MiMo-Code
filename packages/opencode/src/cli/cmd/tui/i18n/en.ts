@@ -312,7 +312,7 @@ export const dict: Record<string, string> = {
   "tui.toast.update_available.success": "Successfully updated to MiMoCode v{{version}}. Please restart the application.",
   "tui.toast.updated.title": "Auto-updated",
   "tui.toast.updated.message": "Patch update applied: v{{version}}. Restart to use the new version. Disable via autoupdate: false in config.",
-  "tui.toast.native_installer_tip": "Tip: native installer (curl/PowerShell) is recommended for faster updates.",
+  "tui.toast.native_installer_tip": "Tip: native installer (curl/PowerShell) is recommended for a better experience.",
   "tui.sidebar.instructions": "Instructions",
   "tui.sidebar.cwd": "Working Directory",
   "tui.toast.unknown_error": "An unknown error has occurred",

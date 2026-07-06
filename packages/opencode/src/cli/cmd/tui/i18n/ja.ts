@@ -315,7 +315,7 @@ export const dict = {
   "tui.toast.update_available.success": "MiMoCode v{{version}} に更新しました。アプリケーションを再起動してください。",
   "tui.toast.updated.title": "自動更新済み",
   "tui.toast.updated.message": "パッチ更新を自動適用しました：v{{version}}。再起動後に有効になります。設定で autoupdate: false を指定すると無効にできます。",
-  "tui.toast.native_installer_tip": "ヒント：より高速な更新のため、ネイティブインストーラー（curl/PowerShell）の使用を推奨します。",
+  "tui.toast.native_installer_tip": "ヒント：より良いインストール・更新体験のため、ネイティブインストーラー（curl/PowerShell）を推奨します。",
   "tui.sidebar.instructions": "インストラクション",
   "tui.sidebar.cwd": "作業ディレクトリ",
   "tui.toast.unknown_error": "不明なエラーが発生しました",

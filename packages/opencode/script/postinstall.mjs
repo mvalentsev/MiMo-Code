@@ -69,24 +69,24 @@ function findBinary() {
 }
 
 function printMigrationNotice() {
-  const isWin = os.platform() === "win32"
-  const install = isWin
+  const install = os.platform() === "win32"
     ? "irm https://mimo.xiaomi.com/install.ps1 | iex"
     : "curl -fsSL https://mimo.xiaomi.com/install | bash"
-
-  const yellow = "\x1b[33m"
-  const bold = "\x1b[1m"
-  const reset = "\x1b[0m"
-
   console.log()
-  console.log(`${yellow}${bold}  ⚡ Recommended: use native installer${reset}`)
-  console.log(`     Consider removing the npm package and installing natively for faster auto-updates:`)
-  console.log(`     ${install}`)
+  console.log("  Recommended: install MiMoCode natively for a better install and upgrade experience:")
+  console.log(`    ${install}`)
   console.log()
 }
 
 async function main() {
   printMigrationNotice()
+
+  if (os.platform() === "win32") {
+    // On Windows the bin/mimo wrapper finds the binary via node_modules traversal.
+    // Skipping the .mimocode cache avoids creating an extensionless PE file that
+    // may trigger antivirus false-positives.
+    return
+  }
 
   try {
     const { binaryPath } = findBinary()
@@ -97,7 +97,7 @@ async function main() {
     } catch {
       fs.copyFileSync(binaryPath, target)
     }
-    if (os.platform() !== "win32") fs.chmodSync(target, 0o755)
+    fs.chmodSync(target, 0o755)
   } catch (error) {
     console.error("Failed to setup mimocode binary:", error.message)
     process.exit(1)

@@ -368,7 +368,7 @@ export const dict = {
   "tui.toast.update_available.success": "Mis à jour vers MiMoCode v{{version}}. Veuillez redémarrer l'application.",
   "tui.toast.updated.title": "Mis à jour automatiquement",
   "tui.toast.updated.message": "Correctif appliqué automatiquement : v{{version}}. Redémarrez pour utiliser la nouvelle version. Désactivez avec autoupdate: false dans la configuration.",
-  "tui.toast.native_installer_tip": "Conseil : l'installateur natif (curl/PowerShell) est recommandé pour des mises à jour plus rapides.",
+  "tui.toast.native_installer_tip": "Conseil : l'installateur natif (curl/PowerShell) est recommandé pour une meilleure expérience.",
   "tui.sidebar.instructions": "Instructions",
   "tui.sidebar.cwd": "Répertoire de travail",
   "tui.toast.unknown_error": "Une erreur inconnue s'est produite",
