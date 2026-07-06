@@ -133,6 +133,21 @@ sudo apt install xsel
 
 Compose 模式提供结构化的 specs-driven 开发流程，内置规划、执行、代码审查、TDD、调试、验证、合并等技能——编排从 spec 到交付的完整开发生命周期。
 
+### Workflows
+
+Workflow 是在沙箱运行时中执行的确定性 JavaScript 脚本，可编排多个 Agent 协作。与 Agent 对话不同，Workflow 编码了固定的阶段序列、有界重试和自动并行化——全程非交互，丢出去跑完即可。
+
+MiMoCode 内置两个 Workflow：
+
+| Workflow | 阶段 | 说明 |
+|----------|------|------|
+| `compose` | Brainstorm → Design → Implement → Verify → Review → Report → Merge | 完整开发流水线。自动将独立任务并行分发到隔离的 git worktree，每个任务应用 TDD，阶段之间传递结构化输出。适合需求明确且可拆分为独立子任务的场景。 |
+| `deep-research` | Plan → Search → Extract → Group → Crosscheck → Report | 多源深度调研 + 对抗式事实验证。并行搜索网络、精读最强来源、用陪审投票交叉验证每条事实、生成带引用的报告。 |
+
+compose workflow 与 compose agent 互补：**workflow** 适合需求清晰、任务可独立拆解的场景（确定性、并行、非交互）；**agent** 适合需要中途改方向或在步骤间注入人工判断的场景（对话式、交互式）。
+
+**自定义 Workflow：** 在 `.mimocode/workflows/` 或 `.claude/workflows/` 下放置 `.js` 文件即可定义自己的 Workflow，也可用同名文件覆盖内置 Workflow（如 `.mimocode/workflows/compose.js`）。
+
 ### 内置技能（Builtin Skills）
 
 技能（Skill）是可复用的指令集，教会 Agent 如何处理特定任务（如生成 PDF、写学术论文、搜索 arXiv）。MiMoCode 内置以下技能：
