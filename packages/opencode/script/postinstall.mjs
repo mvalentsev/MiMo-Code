@@ -68,35 +68,20 @@ function findBinary() {
   }
 }
 
-function isChineseLocale() {
-  const lang = process.env.LANG || process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANGUAGE || ""
-  if (/^zh/i.test(lang)) return true
-  try {
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale
-    if (/^zh/i.test(locale)) return true
-  } catch {}
-  return false
-}
-
 function printMigrationNotice() {
   const isWin = os.platform() === "win32"
   const install = isWin
     ? "irm https://mimo.xiaomi.com/install.ps1 | iex"
     : "curl -fsSL https://mimo.xiaomi.com/install | bash"
 
-  const zh = isChineseLocale()
-  const title = zh ? "建议使用原生安装方式" : "Recommended: use native installer"
-  const msg = zh
-    ? `建议卸载 npm 包后通过原生方式安装，以获得更快的自动更新体验：\n     ${install}`
-    : `Consider removing the npm package and installing natively for faster auto-updates:\n     ${install}`
-
   const yellow = "\x1b[33m"
   const bold = "\x1b[1m"
   const reset = "\x1b[0m"
 
   console.log()
-  console.log(`${yellow}${bold}  ⚡ ${title}${reset}`)
-  console.log(`     ${msg}`)
+  console.log(`${yellow}${bold}  ⚡ Recommended: use native installer${reset}`)
+  console.log(`     Consider removing the npm package and installing natively for faster auto-updates:`)
+  console.log(`     ${install}`)
   console.log()
 }
 
