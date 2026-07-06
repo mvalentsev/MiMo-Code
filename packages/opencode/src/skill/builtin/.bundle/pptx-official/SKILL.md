@@ -56,7 +56,7 @@ uv init -p 3.12
 
 # Add dependencies
 uv add python-pptx lxml Pillow
-uv add defusedxml                  # safe XML parsing (required for editing)
+uv add defusedxml                  # safe XML parsing (recommended for manual XML edits)
 ```
 
 **Rules:**
