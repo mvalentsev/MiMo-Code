@@ -1,0 +1,13 @@
+diff --git a/index.js b/index.js
+index c7badbef2f345f9d228d40c64a69d6570512fd8d..4f7a2761026f6be7e3f05d5c964791079bcb5eb2 100644
+--- a/index.js
++++ b/index.js
+@@ -8113,6 +8113,8 @@ class MarkdownRenderable extends Renderable {
+   createInitialStyledText(token) {
+     if (!this._streaming)
+       return;
++    if (token.type === "html")
++      return;
+     const chunks = [];
+     if ("tokens" in token && Array.isArray(token.tokens)) {
+       this.renderInlineContent(token.tokens, chunks);
