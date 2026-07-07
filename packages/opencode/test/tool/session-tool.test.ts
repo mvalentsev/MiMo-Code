@@ -316,6 +316,51 @@ describe("session tool", () => {
     ),
   )
 
+  it.live("list excludes subagent sessions (checkpoint-writer) parented to the orchestrator", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const actorReg = yield* ActorRegistry.Service
+        const parent = yield* sessions.create({ title: "Parent" })
+
+        const info = yield* SessionTool
+        const tool = yield* info.init()
+
+        // A real peer child — this SHOULD appear in the listing.
+        const peer = yield* tool.execute(
+          { operation: { action: "create", task: "real work", mode: "build", title: "Peer" } },
+          ctx(parent.id),
+        )
+        const peerID = peer.metadata.sessionID!
+
+        // A subagent child: same parent linkage (checkpoint-writer / dream /
+        // distill and read-only fork children are all parented to us via the
+        // Session row), but registered as mode:"subagent" with a system agent.
+        // This must NOT appear in the orchestrator's child listing.
+        const sub = yield* sessions.create({ title: "checkpoint-writer: T1", parentID: parent.id })
+        yield* actorReg.register({
+          sessionID: sub.id,
+          actorID: sub.id,
+          mode: "subagent",
+          agent: "checkpoint-writer",
+          description: "checkpoint",
+          contextMode: "full",
+          background: true,
+          lifecycle: "ephemeral",
+        })
+
+        const result = yield* tool.execute({ operation: { action: "list" } }, ctx(parent.id))
+
+        // Only the peer is listed; the checkpoint-writer subagent is filtered.
+        expect(result.title).toBe("Child sessions: 1")
+        expect(result.output).toContain(peerID)
+        expect(result.output).toContain("Peer")
+        expect(result.output).not.toContain(sub.id)
+        expect(result.output).not.toContain("checkpoint-writer")
+      }),
+    ),
+  )
+
   it.live("list returns an empty message when there are no children", () =>
     provideTmpdirInstance(() =>
       Effect.gen(function* () {

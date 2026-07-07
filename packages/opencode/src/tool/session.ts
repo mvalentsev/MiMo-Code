@@ -10,6 +10,7 @@ import { Instance } from "@/project/instance"
 import { InstanceRef } from "@/effect/instance-ref"
 import { InstanceState } from "@/effect"
 import { ActorRegistry } from "@/actor/registry"
+import { SYSTEM_SPAWNED_AGENT_TYPES } from "@/agent/config"
 import { forwardRef } from "@/permission/permission-forward-ref"
 import { Provider } from "@/provider"
 import { spawnRef } from "@/actor/spawn-ref"
@@ -523,16 +524,25 @@ export const SessionTool = Tool.define<typeof parameters, Metadata, Deps>(
         // to ctx.sessionID at create time. Enrich each child with its actor
         // row (mode/agent/status) keyed by sessionID === actorID === child.id.
         const children = yield* sessions.children(ctx.sessionID as SessionID)
-        if (children.length === 0)
-          return { title: "Child sessions: 0", output: "No child sessions.", metadata: {} as Metadata }
-        const lines = yield* Effect.forEach(children, (child) =>
-          actorReg.get(child.id, child.id).pipe(
-            Effect.map((actor) =>
-              `${child.id} — ${child.title} — ${actor?.agent ?? "?"} — ${actor?.status ?? "unknown"}`,
-            ),
-          ),
+        // Subagent sessions (checkpoint-writer / dream / distill / read-only
+        // fork-query children spawned by `ask`) are ALSO parented to us via the
+        // Session row, so sessions.children returns them too. They are not real
+        // peer children the orchestrator manages — filter them out. A child is a
+        // subagent iff its actor row is mode:"subagent" or its agent is one of
+        // the runtime system-spawned types (checkpoint-writer/dream/distill).
+        const enriched = yield* Effect.forEach(children, (child) =>
+          actorReg.get(child.id, child.id).pipe(Effect.map((actor) => ({ child, actor }))),
         )
-        return { title: `Child sessions: ${children.length}`, output: lines.join("\n"), metadata: {} as Metadata }
+        const peers = enriched.filter(
+          ({ actor }) => actor?.mode !== "subagent" && !(actor && SYSTEM_SPAWNED_AGENT_TYPES.has(actor.agent)),
+        )
+        if (peers.length === 0)
+          return { title: "Child sessions: 0", output: "No child sessions.", metadata: {} as Metadata }
+        const lines = peers.map(
+          ({ child, actor }) =>
+            `${child.id} — ${child.title} — ${actor?.agent ?? "?"} — ${actor?.status ?? "unknown"}`,
+        )
+        return { title: `Child sessions: ${peers.length}`, output: lines.join("\n"), metadata: {} as Metadata }
       }
 
       if (op.action === "cancel") {
