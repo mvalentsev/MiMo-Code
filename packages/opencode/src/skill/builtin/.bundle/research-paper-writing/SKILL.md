@@ -1,6 +1,6 @@
 ---
 name: research-paper-writing
-description: Write, rewrite, and polish academic papers (ML/CV/NLP style). Use when the user drafts or revises Abstract, Introduction, Related Work, Method, Experiments, or Conclusion; asks "does this flow / 这段通顺吗 / polish this paragraph"; turns bullet points or a Chinese draft into publication-quality English; runs a pre-submission self-review or reviewer-style critique; or fixes paper figures/tables/LaTeX formatting. Trigger on mentions of paper, draft, camera-ready, rebuttal-facing revision, CVPR/ICCV/NeurIPS/ICLR/ACL-style venues, or .tex files being edited for a paper.
+description: Write, rewrite, and polish academic papers (ML/CV/NLP style). Use when the user drafts or revises Abstract, Introduction, Related Work, Method, Experiments, or Conclusion; asks "does this flow / 这段通顺吗 / polish this paragraph"; turns bullet points or a Chinese draft into publication-quality English; runs a pre-submission self-review or reviewer-style critique; fixes paper figures/tables/LaTeX formatting; or compiles/converts the paper to PDF (LaTeX build, 编译PDF, 转成PDF). Trigger on mentions of paper, draft, camera-ready, rebuttal-facing revision, CVPR/ICCV/NeurIPS/ICLR/ACL-style venues, or .tex files being edited for a paper.
 ---
 
 # Research Paper Writing
@@ -21,6 +21,7 @@ Match the user's situation and load ONLY the needed reference (do not preload al
 | Draft or rewrite Experiments; fix tables | Claim→experiment mapping, table rules | `references/experiments.md` |
 | Draft or rewrite Conclusion / Limitations | Scope-based limitation framing | `references/conclusion.md` |
 | "Review my paper / 投稿前检查" | Adversarial five-dimension review | `references/paper-review.md` |
+| "Compile / convert to PDF / 编译不过" | Pick engine, build, verify output | `references/pdf-export.md` |
 | Bullet points / Chinese notes → English section | Treat as section drafting; get facts first, then draft | the matching section guide |
 
 If the user's draft lives in files (`.tex`, `.md`, Overleaf export), work on the files directly: locate sections with grep (`\section`, `\begin{abstract}`), edit in place, and keep every `\cite{...}`, `\ref{...}`, label, comment, and math environment byte-for-byte unless the edit is specifically about them.
@@ -83,4 +84,5 @@ If any of these are missing and not recoverable from context, ask — at most 3 
 - `references/conclusion.md` — limitation framing that doesn't invite rejection
 - `references/paper-review.md` — adversarial five-dimension review checklist
 - `references/paragraph-flow.md` — paragraph clarity test, reverse outlining, transitions
+- `references/pdf-export.md` — compiling LaTeX/Markdown to PDF, engine choice, failure fixes, output verification
 - `references/examples/` — annotated LaTeX examples cited from the section guides
