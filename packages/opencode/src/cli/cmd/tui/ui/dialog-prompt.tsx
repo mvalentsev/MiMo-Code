@@ -8,7 +8,7 @@ import { useLanguage } from "@tui/context/language"
 
 export type DialogPromptProps = {
   title: string
-  description?: () => JSX.Element
+  description?: JSX.Element
   placeholder?: string
   value?: string
   busy?: boolean

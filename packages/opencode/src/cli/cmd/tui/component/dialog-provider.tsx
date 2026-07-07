@@ -326,7 +326,7 @@ function CodeMethod(props: CodeMethodProps) {
         }
         setError(true)
       }}
-      description={() => (
+      description={
         <box gap={1}>
           <text fg={theme.textMuted}>{props.authorization.instructions}</text>
           <Link href={props.authorization.url} fg={theme.primary} />
@@ -334,7 +334,7 @@ function CodeMethod(props: CodeMethodProps) {
             <text fg={theme.error}>Invalid code</text>
           </Show>
         </box>
-      )}
+      }
     />
   )
 }

@@ -56,7 +56,7 @@ function Install(props: { api: TuiPluginApi }) {
       placeholder="npm package name"
       busy={busy()}
       busyText="Installing plugin..."
-      description={() => (
+      description={
         <box flexDirection="row" gap={1}>
           <text fg={props.api.theme.current.textMuted}>scope:</text>
           <text fg={busy() ? props.api.theme.current.textMuted : props.api.theme.current.text}>
@@ -66,7 +66,7 @@ function Install(props: { api: TuiPluginApi }) {
             <text fg={props.api.theme.current.textMuted}>({Keybind.toString(tab)} toggle)</text>
           </Show>
         </box>
-      )}
+      }
       onConfirm={(raw) => {
         if (busy()) return
         const mod = raw.trim()

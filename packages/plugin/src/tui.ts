@@ -107,7 +107,7 @@ export type TuiDialogConfirmProps = {
 
 export type TuiDialogPromptProps = {
   title: string
-  description?: () => JSX.Element
+  description?: JSX.Element
   placeholder?: string
   value?: string
   busy?: boolean
