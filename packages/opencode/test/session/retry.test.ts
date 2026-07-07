@@ -129,6 +129,26 @@ describe("session.retry.retryable", () => {
     expect(SessionRetry.retryable(error)).toBe("Too Many Requests")
   })
 
+  test("maps provider 429 limitation error body as rate-limited", () => {
+    const error = wrap(JSON.stringify({ error: { code: "429", message: "Too many requests", type: "limitation" } }))
+    expect(SessionRetry.retryable(error)).toBe("Too Many Requests")
+  })
+
+  test("maps numeric 429 error code as rate-limited", () => {
+    const error = wrap(JSON.stringify({ error: { code: 429, message: "Too many requests" } }))
+    expect(SessionRetry.retryable(error)).toBe("Too Many Requests")
+  })
+
+  test("maps top-level 429 code as rate-limited", () => {
+    const error = wrap(JSON.stringify({ code: "429", message: "slow down" }))
+    expect(SessionRetry.retryable(error)).toBe("Too Many Requests")
+  })
+
+  test("maps nested rate-limit message as rate-limited", () => {
+    const error = wrap(JSON.stringify({ error: { code: "unknown", message: "Rate limit exceeded" } }))
+    expect(SessionRetry.retryable(error)).toBe("Too Many Requests")
+  })
+
   test("maps overloaded provider codes", () => {
     const error = wrap(JSON.stringify({ code: "resource_exhausted" }))
     expect(SessionRetry.retryable(error)).toBe("Provider is overloaded")

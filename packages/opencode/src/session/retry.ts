@@ -44,10 +44,13 @@ export function isRetryableTransientError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
 
   const status =
-    (error as { status?: number }).status ??
-    (error as { statusCode?: number }).statusCode ??
-    (error as { response?: { status?: number } }).response?.status
-  if (typeof status === "number" && RETRYABLE_HTTP_STATUS.has(status)) return true
+    (error as { status?: number | string }).status ??
+    (error as { statusCode?: number | string }).statusCode ??
+    (error as { response?: { status?: number | string } }).response?.status
+  // Some providers surface the HTTP status as a numeric string (e.g. "429")
+  // rather than a number — coerce before matching so the 429 path is not missed.
+  const statusNum = typeof status === "string" ? Number.parseInt(status, 10) : status
+  if (typeof statusNum === "number" && !Number.isNaN(statusNum) && RETRYABLE_HTTP_STATUS.has(statusNum)) return true
 
   const code = (error as { code?: string }).code
   if (typeof code === "string" && NETWORK_ERROR_CODES.has(code)) return true
@@ -119,19 +122,6 @@ export function retryable(error: Err) {
     return error.data.message.includes("Overloaded") ? "Provider is overloaded" : error.data.message
   }
 
-  // Check for rate limit patterns in plain text error messages
-  const msg = error.data?.message
-  if (typeof msg === "string") {
-    const lower = msg.toLowerCase()
-    if (
-      lower.includes("rate increased too quickly") ||
-      lower.includes("rate limit") ||
-      lower.includes("too many requests")
-    ) {
-      return msg
-    }
-  }
-
   const json = iife(() => {
     try {
       if (typeof error.data?.message === "string") {
@@ -144,16 +134,38 @@ export function retryable(error: Err) {
       return undefined
     }
   })
+
+  // Check for rate limit patterns in plain text error messages. Skip when the
+  // message is a JSON object string — returning it here would leak the raw blob
+  // into the TUI. Structured bodies are normalized by the JSON branch below.
+  const msg = error.data?.message
+  if (typeof msg === "string" && (!json || typeof json !== "object")) {
+    if (isRateLimitMessage(msg)) {
+      return msg
+    }
+  }
   if (!json || typeof json !== "object") return undefined
   const code = typeof json.code === "string" ? json.code : ""
 
-  if (json.type === "error" && json.error?.type === "too_many_requests") {
+  // Normalize any 429 / too-many-requests JSON shape into a retryable
+  // rate-limit status. Providers disagree on where they put the signal:
+  // top-level `type`/`code`, or nested under `error.{type,code,message}`.
+  const errorCode = String(json.error?.code ?? "")
+  const errorType = typeof json.error?.type === "string" ? json.error.type : ""
+  const errorMessage = typeof json.error?.message === "string" ? json.error.message : ""
+  const is429 = code === "429" || errorCode === "429" || String(json.status ?? "") === "429"
+  if (
+    errorType === "too_many_requests" ||
+    is429 ||
+    isRateLimitMessage(errorMessage) ||
+    (typeof json.message === "string" && isRateLimitMessage(json.message))
+  ) {
     return "Too Many Requests"
   }
   if (code.includes("exhausted") || code.includes("unavailable")) {
     return "Provider is overloaded"
   }
-  if (json.type === "error" && typeof json.error?.code === "string" && json.error.code.includes("rate_limit")) {
+  if (json.type === "error" && errorCode.includes("rate_limit")) {
     return "Rate Limited"
   }
   return undefined
