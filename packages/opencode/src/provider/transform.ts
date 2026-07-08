@@ -241,6 +241,38 @@ function supportsCacheMarkers(model: Provider.Model): boolean {
   return false
 }
 
+// Whether the provider/model accepts an "assistant prefill" — a trailing
+// assistant message that the model continues from. Anthropic-native (and the
+// Anthropic-shaped SDKs) accept it; the Bedrock Converse API rejects it with a
+// non-retryable 400: "This model does not support assistant message prefill.
+// The conversation must end with a user message."
+//
+// Detection mirrors supportsCacheMarkers: match by SDK npm + providerID rather
+// than fragile model-id name matching, so a Claude routed through Bedrock is
+// correctly treated as prefill-rejecting even though its id contains "claude".
+function supportsAssistantPrefill(model: Provider.Model): boolean {
+  // Bedrock Converse API rejects a trailing assistant message across all model
+  // families it hosts.
+  if (model.api.npm === "@ai-sdk/amazon-bedrock") return false
+  if (model.providerID.includes("bedrock")) return false
+  return true
+}
+
+// Bedrock (and any other prefill-rejecting provider) 400s when the message list
+// ends with an assistant message. This drops trailing assistant message(s) so
+// the sent conversation ends with a user/tool message, matching the provider's
+// requirement. Anthropic-native and every other provider keep prefill intact
+// (supportsAssistantPrefill gates the call in `message()`).
+//
+// Runs at the pre-send choke point, so it also self-heals history that already
+// ends in an assistant turn (e.g. a retry after an interrupted generation).
+function dropTrailingAssistantPrefill(msgs: ModelMessage[]): ModelMessage[] {
+  let end = msgs.length
+  while (end > 0 && msgs[end - 1].role === "assistant") end--
+  if (end === msgs.length) return msgs
+  return msgs.slice(0, end)
+}
+
 // The cache-control marker shape differs per provider/SDK. This is the single
 // source of truth, keyed by the SDK provider-options namespace. `applyCaching`
 // attaches the whole object (keyed by stored providerID) and lets `message()`
@@ -585,6 +617,9 @@ export function message(msgs: ModelMessage[], model: Provider.Model, options: Re
   msgs = unsupportedParts(msgs, model)
   msgs = limitImages(msgs, model)
   msgs = normalizeMessages(msgs, model, options)
+  if (!supportsAssistantPrefill(model)) {
+    msgs = dropTrailingAssistantPrefill(msgs)
+  }
   if (supportsCacheMarkers(model)) {
     msgs = applyCaching(msgs, model)
   }

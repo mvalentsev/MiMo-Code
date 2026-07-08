@@ -1627,14 +1627,18 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
           { type: "text", text: "Answer" },
         ],
       },
+      // Bedrock rejects a trailing assistant message, so end on a user turn to
+      // isolate the empty-content filtering behavior under test here.
+      { role: "user", content: "Thanks" },
     ] as any[]
 
     const result = ProviderTransform.message(msgs, bedrockModel, {})
 
-    expect(result).toHaveLength(2)
+    expect(result).toHaveLength(3)
     expect(result[0].content).toBe("Hello")
     expect(result[1].content).toHaveLength(1)
     expect(result[1].content[0]).toEqual({ type: "text", text: "Answer" })
+    expect(result[2].content).toBe("Thanks")
   })
 
   test("does not filter for non-anthropic providers", () => {
@@ -1765,6 +1769,119 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
         { type: "tool-call", toolCallId: "toolu_2", toolName: "glob", input: { pattern: "**/*.pdf" } },
       ],
     })
+  })
+})
+
+describe("ProviderTransform.message - assistant prefill (Bedrock rejects trailing assistant)", () => {
+  const withProvider = (providerID: string, api: { id: string; url: string; npm: string }) =>
+    ({
+      id: `${providerID}/${api.id}`,
+      providerID,
+      api,
+      name: api.id,
+      capabilities: {
+        temperature: true,
+        reasoning: false,
+        attachment: true,
+        toolcall: true,
+        input: { text: true, audio: false, image: true, video: false, pdf: true },
+        output: { text: true, audio: false, image: false, video: false, pdf: false },
+        interleaved: false,
+      },
+      cost: { input: 0.003, output: 0.015, cache: { read: 0.0003, write: 0.00375 } },
+      limit: { context: 200000, output: 8192 },
+      status: "active",
+      options: {},
+      headers: {},
+    }) as any
+
+  const bedrockModel = withProvider("amazon-bedrock", {
+    id: "anthropic.claude-opus-4-6",
+    url: "https://bedrock-runtime.us-east-1.amazonaws.com",
+    npm: "@ai-sdk/amazon-bedrock",
+  })
+  const anthropicModel = withProvider("anthropic", {
+    id: "claude-3-5-sonnet-20241022",
+    url: "https://api.anthropic.com",
+    npm: "@ai-sdk/anthropic",
+  })
+
+  const prefillConversation = () =>
+    [
+      { role: "user", content: "Write a JSON object." },
+      { role: "assistant", content: [{ type: "text", text: "Here it is:" }] },
+      { role: "user", content: "Now continue." },
+      { role: "assistant", content: [{ type: "text", text: "{" }] },
+    ] as any[]
+
+  test("bedrock: drops the trailing assistant prefill so the conversation ends with a user message", () => {
+    const result = ProviderTransform.message(prefillConversation(), bedrockModel, {})
+    expect(result).toHaveLength(3)
+    expect(result[result.length - 1].role).toBe("user")
+    expect(result[result.length - 1].content).toBe("Now continue.")
+  })
+
+  test("bedrock: drops multiple trailing assistant messages (only trailing ones)", () => {
+    const msgs = [
+      { role: "user", content: "Hi" },
+      { role: "assistant", content: [{ type: "text", text: "mid-turn assistant" }] },
+      { role: "user", content: "Go" },
+      { role: "assistant", content: [{ type: "text", text: "first prefill" }] },
+      { role: "assistant", content: [{ type: "text", text: "second prefill" }] },
+    ] as any[]
+    const result = ProviderTransform.message(msgs, bedrockModel, {})
+    expect(result[result.length - 1].role).toBe("user")
+    expect(result[result.length - 1].content).toBe("Go")
+    // The mid-conversation assistant turn is preserved; only the trailing run is dropped.
+    expect(result.some((m) => Array.isArray(m.content) && (m.content[0] as any)?.text === "mid-turn assistant")).toBe(
+      true,
+    )
+  })
+
+  test("bedrock: leaves a conversation already ending with a user message untouched", () => {
+    const msgs = [
+      { role: "user", content: "Hi" },
+      { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      { role: "user", content: "Bye" },
+    ] as any[]
+    const result = ProviderTransform.message(msgs, bedrockModel, {})
+    expect(result).toHaveLength(3)
+    expect(result[result.length - 1].content).toBe("Bye")
+  })
+
+  test("bedrock: does not drop a trailing tool message", () => {
+    const msgs = [
+      { role: "user", content: "Read the file" },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call_1", toolName: "read", input: { filePath: "/x" } }],
+      },
+      {
+        role: "tool",
+        content: [
+          { type: "tool-result", toolCallId: "call_1", toolName: "read", output: { type: "text", value: "ok" } },
+        ],
+      },
+    ] as any[]
+    const result = ProviderTransform.message(msgs, bedrockModel, {})
+    expect(result[result.length - 1].role).toBe("tool")
+  })
+
+  test("anthropic-native: keeps the trailing assistant prefill intact", () => {
+    const result = ProviderTransform.message(prefillConversation(), anthropicModel, {})
+    expect(result).toHaveLength(4)
+    expect(result[result.length - 1].role).toBe("assistant")
+    expect((result[result.length - 1].content as any[])[0]).toEqual({ type: "text", text: "{" })
+  })
+
+  test("bedrock via non-bedrock providerID (custom profile): still drops trailing assistant", () => {
+    const model = withProvider("my-bedrock-profile", {
+      id: "anthropic.claude-opus-4-6",
+      url: "https://bedrock-runtime.us-east-1.amazonaws.com",
+      npm: "@ai-sdk/amazon-bedrock",
+    })
+    const result = ProviderTransform.message(prefillConversation(), model, {})
+    expect(result[result.length - 1].role).toBe("user")
   })
 })
 
