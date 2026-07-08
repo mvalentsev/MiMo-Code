@@ -91,6 +91,19 @@ type State = {
   hooksWithMeta: HookEntry[]
 }
 
+type FileHookState = {
+  hooks: Hooks[]
+  meta: HookEntry[]
+  dirs: string[]
+  /** Absolute path -> mtimeMs at load time, for cheap staleness checks. */
+  files: Record<string, number>
+  /** Mutable box: last staleness check timestamp (throttle). */
+  lastCheck: { value: number }
+}
+
+const FILE_HOOK_GLOB = "{hook,hooks}/*.{js,ts}"
+const FILE_HOOK_CHECK_INTERVAL_MS = 500
+
 export type ActorStopAggregatedDecision = ActorStopOutput & {
   contributingPluginNames: string[]
   contributingHookIDs: string[]
@@ -412,25 +425,37 @@ export const layer = Layer.effect(
       }),
     )
 
-    const fileHookState = yield* InstanceState.make<{ hooks: Hooks[]; meta: HookEntry[] }>(
+    const fileHookState = yield* InstanceState.make<FileHookState>(
       Effect.fn("Plugin.fileHooks")(function* () {
         const hooks: Hooks[] = []
         const meta: HookEntry[] = []
-        const cfg = yield* config.get()
+        const files: Record<string, number> = {}
+        yield* config.get()
         const dirs = yield* config.directories()
 
         for (const dir of dirs) {
-          const matches = Glob.scanSync("{hook,hooks}/*.{js,ts}", { cwd: dir, absolute: true, dot: true, symlink: true })
+          const matches = Glob.scanSync(FILE_HOOK_GLOB, { cwd: dir, absolute: true, dot: true, symlink: true })
           for (const match of matches) {
-            const mod = yield* Effect.tryPromise({
-              try: () => import(`${pathToFileURL(match).href}?v=${Date.now()}`),
+            const stat = yield* Effect.tryPromise({
+              try: () => fs.promises.stat(match),
+              catch: (err) => err,
+            }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            files[match] = stat?.mtimeMs ?? 0
+            // require() + cache delete instead of dynamic import: Bun ignores
+            // query-string cache busters on file: imports, so a re-import would
+            // return the stale module forever.
+            const mod = yield* Effect.try({
+              try: () => {
+                delete require.cache[match]
+                return require(match) as Record<string, unknown>
+              },
               catch: (err) => err,
             }).pipe(Effect.catch((err) => {
               log.error("failed to load file hook", { path: match, error: errorMessage(err) })
               return Effect.succeed(undefined)
             }))
             if (!mod) continue
-            const hookObj: Hooks = mod.default ?? mod
+            const hookObj: Hooks = (mod.default ?? mod) as Hooks
             if (hookObj && typeof hookObj === "object") {
               const name = path.basename(match, path.extname(match))
               hooks.push(hookObj)
@@ -440,9 +465,67 @@ export const layer = Layer.effect(
           }
         }
 
-        return { hooks, meta }
+        // Dispatch bus events to file hooks' `event` handlers. Scoped to this
+        // cache entry: invalidation interrupts the fiber, and the rebuild
+        // re-subscribes with the fresh hook set.
+        if (hooks.some((hook) => typeof hook.event === "function")) {
+          yield* bus.subscribeAll().pipe(
+            Stream.runForEach((input) =>
+              Effect.sync(() => {
+                for (const entry of meta) {
+                  const fn = entry.hook.event
+                  if (!fn) continue
+                  try {
+                    void Promise.resolve(fn({ event: input as any })).catch((err) => {
+                      log.error("file hook event handler failed", { hook: entry.pluginName, error: errorMessage(err) })
+                    })
+                  } catch (err) {
+                    log.error("file hook event handler failed", { hook: entry.pluginName, error: errorMessage(err) })
+                  }
+                }
+              }),
+            ),
+            Effect.forkScoped,
+          )
+        }
+
+        return { hooks, meta, dirs, files, lastCheck: { value: Date.now() } }
       }),
     )
+
+    // Staleness check: re-stat known hook files and re-glob hook dirs. Any
+    // mtime change, added, or removed file invalidates the cache so the next
+    // InstanceState.get rebuilds it. Covers ALL writers (editors, git, other
+    // processes) — not just this process's write/edit tools. Throttled to
+    // avoid stat storms on hot trigger paths.
+    const freshFileHooks = Effect.gen(function* () {
+      const fh = yield* InstanceState.get(fileHookState)
+      const now = Date.now()
+      if (now - fh.lastCheck.value < FILE_HOOK_CHECK_INTERVAL_MS) return fh
+      fh.lastCheck.value = now
+
+      const stale = yield* Effect.promise(async () => {
+        const known = Object.keys(fh.files)
+        const seen = new Set<string>()
+        for (const dir of fh.dirs) {
+          for (const match of Glob.scanSync(FILE_HOOK_GLOB, { cwd: dir, absolute: true, dot: true, symlink: true })) {
+            seen.add(match)
+            if (!(match in fh.files)) return true
+          }
+        }
+        for (const file of known) {
+          if (!seen.has(file)) return true
+          const stat = await fs.promises.stat(file).catch(() => undefined)
+          if ((stat?.mtimeMs ?? 0) !== fh.files[file]) return true
+        }
+        return false
+      })
+
+      if (!stale) return fh
+      log.info("file hooks changed on disk, reloading")
+      yield* InstanceState.invalidate(fileHookState)
+      return yield* InstanceState.get(fileHookState)
+    })
 
     const aggregateDecision = (
       input: ActorPreStopInput | ActorPostStopInput,
@@ -450,7 +533,7 @@ export const layer = Layer.effect(
     ) =>
       Effect.gen(function* () {
         const s = yield* InstanceState.get(state)
-        const fh = yield* InstanceState.get(fileHookState)
+        const fh = yield* freshFileHooks
         const reasons: string[] = []
         const pluginNames: string[] = []
         const hookIDs: string[] = []
@@ -564,7 +647,7 @@ export const layer = Layer.effect(
     >(name: Name, input: Input, output: Output) {
       if (!name) return output
       const s = yield* InstanceState.get(state)
-      const fh = yield* InstanceState.get(fileHookState)
+      const fh = yield* freshFileHooks
 
       for (const entry of s.hooksWithMeta) {
         const fn = entry.hook[name] as any
