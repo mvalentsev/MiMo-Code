@@ -1679,7 +1679,23 @@ type MessageError = NonNullable<AssistantMessage["error"]>
 
 function errorBody(error: MessageError): string {
   if (error.name === "MessageOutputLengthError") return "Output length limit reached"
-  return (error.data as { message?: string }).message ?? "Unknown error"
+  const message = (error.data as { message?: string }).message ?? "Unknown error"
+  // Defensive normalization: a 429 that reaches a TERMINAL assistant error
+  // (retries exhausted, or a shape retryable() didn't classify) would otherwise
+  // dump the raw provider blob here. Present a clean rate-limit message instead
+  // of leaking JSON/HTML into the TUI. Detect by APIError 429 status or a
+  // rate-limit signal in the message or response body. See T18.
+  if (error.name === "APIError") {
+    const data = error.data as { statusCode?: number; responseBody?: string }
+    if (
+      data.statusCode === 429 ||
+      SessionRetry.isRateLimitMessage(message) ||
+      (typeof data.responseBody === "string" && SessionRetry.isRateLimitMessage(data.responseBody))
+    ) {
+      return "Too Many Requests — the provider is rate limiting. Please wait a moment and try again."
+    }
+  }
+  return message
 }
 
 function errorMeta(error: MessageError): string | undefined {

@@ -16,7 +16,12 @@ export function isRateLimitMessage(message: string): boolean {
   const lower = message.toLowerCase()
   return (
     lower.includes("too many requests") ||
+    lower.includes("too_many_requests") ||
     lower.includes("rate limit") ||
+    // Providers also spell it with an underscore in structured bodies/types
+    // (e.g. "rate_limit_error", "rate_limited"). Prior fix only matched the
+    // spaced form, so these slipped through into the raw TUI error. See T18.
+    lower.includes("rate_limit") ||
     lower.includes("rate increased too quickly")
   )
 }
@@ -115,6 +120,22 @@ export function retryable(error: Err) {
     // Upstream processing failures (e.g. multimodal data corruption) return 400
     // but are transient — retry them.
     if (status === 400 && error.data.responseBody?.includes("upstream_error")) return error.data.message
+    // 429 rate-limits are transient and retryable EVEN when the provider SDK
+    // marked the APIError isRetryable:false (many do, expecting the caller to
+    // honor retry-after). Prior fix (T7) only normalized 429s in the retry-status
+    // and plaintext/JSON-message branches; a 429 APIError with isRetryable:false
+    // fell through the non-retryable bail below (status 429 < 500), was never
+    // retried, and surfaced as a raw blob in the TUI terminal error render
+    // (errorBody prints error.data.message verbatim). Catch it here — by numeric
+    // status OR a rate-limit signal in the message/body — before that bail so it
+    // both retries and shows a clean status. See T18.
+    if (
+      status === 429 ||
+      isRateLimitMessage(error.data.message) ||
+      (typeof error.data.responseBody === "string" && isRateLimitMessage(error.data.responseBody))
+    ) {
+      return "Too Many Requests"
+    }
     // 5xx errors are transient server failures and should always be retried,
     // even when the provider SDK doesn't explicitly mark them as retryable.
     if (!error.data.isRetryable && !(status !== undefined && status >= 500)) return undefined

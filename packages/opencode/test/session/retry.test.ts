@@ -239,6 +239,35 @@ describe("session.retry.retryable", () => {
     expect(SessionRetry.retryable(error)).toBeUndefined()
   })
 
+  // T18: a 429 APIError the provider marked non-retryable previously fell
+  // through the non-retryable bail (429 < 500) and surfaced as a raw blob.
+  test("retries 429 APIError even when isRetryable is false (by status)", () => {
+    const error = new MessageV2.APIError({
+      message: '429: {"error":{"type":"rate_limit_error","message":"rate limited"}}',
+      isRetryable: false,
+      statusCode: 429,
+      responseBody: '{"error":{"type":"rate_limit_error"}}',
+    }).toObject() as MessageV2.APIError
+
+    expect(SessionRetry.retryable(error)).toBe("Too Many Requests")
+  })
+
+  test("retries a rate-limit APIError when status is absent (by message/body)", () => {
+    const error = new MessageV2.APIError({
+      message: "provider error",
+      isRetryable: false,
+      responseBody: '{"error":{"type":"rate_limit_error"}}',
+    }).toObject() as MessageV2.APIError
+
+    expect(SessionRetry.retryable(error)).toBe("Too Many Requests")
+  })
+
+  test("isRateLimitMessage matches underscore rate_limit variants", () => {
+    expect(SessionRetry.isRateLimitMessage("rate_limit_error")).toBe(true)
+    expect(SessionRetry.isRateLimitMessage("too_many_requests")).toBe(true)
+    expect(SessionRetry.isRateLimitMessage("something unrelated")).toBe(false)
+  })
+
   test("retries ZlibError decompression failures", () => {
     const error = new MessageV2.APIError({
       message: "Response decompression failed",
