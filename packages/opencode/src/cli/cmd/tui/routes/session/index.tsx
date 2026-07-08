@@ -1677,23 +1677,32 @@ const PART_MAPPING = {
 
 type MessageError = NonNullable<AssistantMessage["error"]>
 
+// Classify a terminal assistant error so the render layer can present it as a
+// structured, visually-distinct card (distinct label + color) rather than
+// dumping a raw provider blob into the transcript. A rate-limit gets its own
+// kind so the header reads "Rate limited" instead of a generic error. See T30.
+function errorKind(error: MessageError): "rate-limit" | "error" {
+  if (error.name === "APIError") {
+    const data = error.data as { statusCode?: number; responseBody?: string; message?: string }
+    if (
+      data.statusCode === 429 ||
+      SessionRetry.isRateLimitMessage(data.message ?? "") ||
+      (typeof data.responseBody === "string" && SessionRetry.isRateLimitMessage(data.responseBody))
+    ) {
+      return "rate-limit"
+    }
+  }
+  return "error"
+}
+
 function errorBody(error: MessageError): string {
   if (error.name === "MessageOutputLengthError") return "Output length limit reached"
   const message = (error.data as { message?: string }).message ?? "Unknown error"
-  // Defensive normalization: a 429 that reaches a TERMINAL assistant error
-  // (retries exhausted, or a shape retryable() didn't classify) would otherwise
-  // dump the raw provider blob here. Present a clean rate-limit message instead
-  // of leaking JSON/HTML into the TUI. Detect by APIError 429 status or a
-  // rate-limit signal in the message or response body. See T18.
-  if (error.name === "APIError") {
-    const data = error.data as { statusCode?: number; responseBody?: string }
-    if (
-      data.statusCode === 429 ||
-      SessionRetry.isRateLimitMessage(message) ||
-      (typeof data.responseBody === "string" && SessionRetry.isRateLimitMessage(data.responseBody))
-    ) {
-      return "Too Many Requests — the provider is rate limiting. Please wait a moment and try again."
-    }
+  // A 429 that reaches a TERMINAL assistant error (retries exhausted, or a shape
+  // retryable() didn't classify) would otherwise dump the raw provider blob here.
+  // Present a clean rate-limit message instead of leaking JSON/HTML. See T18/T30.
+  if (errorKind(error) === "rate-limit") {
+    return "The provider is rate limiting. Please wait a moment and try again."
   }
   return message
 }
@@ -1712,20 +1721,39 @@ function errorMeta(error: MessageError): string | undefined {
 
 function ErrorBlock(props: { error: MessageError }) {
   const { theme } = useTheme()
+  const kind = createMemo(() => errorKind(props.error))
+  const color = createMemo(() => (kind() === "rate-limit" ? theme.warning : theme.error))
+  const label = createMemo(() => (kind() === "rate-limit" ? "Rate limited" : "Error"))
   const meta = createMemo(() => errorMeta(props.error))
+  // Render as a structured, visually-distinct card (left border + panel bg),
+  // consistent with the workflow/permission cards, so a terminal error never
+  // looks like raw text pasted into the transcript. See T30.
   return (
-    <box flexDirection="column" paddingLeft={3} marginTop={1}>
-      <text fg={theme.error} wrapMode="word">
-        <span style={{ fg: theme.error }}>✗  </span>
-        {errorBody(props.error)}
-      </text>
-      <Show when={meta()}>
-        <box paddingLeft={3}>
-          <text fg={theme.textMuted} wrapMode="word">
-            {meta()}
-          </text>
-        </box>
-      </Show>
+    <box
+      flexDirection="column"
+      border={["left"]}
+      customBorderChars={SplitBorder.customBorderChars}
+      borderColor={color()}
+      backgroundColor={theme.backgroundPanel}
+      paddingTop={1}
+      paddingBottom={1}
+      paddingLeft={2}
+      marginTop={1}
+      gap={1}
+    >
+      <box flexDirection="row" gap={1} paddingLeft={3}>
+        <text fg={color()} attributes={TextAttributes.BOLD}>
+          ✗ {label()}
+        </text>
+        <Show when={meta()}>
+          <text fg={theme.textMuted}>· {meta()}</text>
+        </Show>
+      </box>
+      <box paddingLeft={3}>
+        <text fg={theme.text} wrapMode="word">
+          {errorBody(props.error)}
+        </text>
+      </box>
     </box>
   )
 }
