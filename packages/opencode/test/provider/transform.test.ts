@@ -1344,6 +1344,119 @@ describe("ProviderTransform.message - oversized image handling", () => {
   })
 })
 
+describe("ProviderTransform.message - provider-aware image size cap", () => {
+  const PROVIDER_HARD_LIMIT = 5_242_880
+
+  const withApi = (providerID: string, api: { id: string; url: string; npm: string }, id?: string) =>
+    ({
+      id: id ?? `${providerID}/${api.id}`,
+      providerID,
+      api,
+      name: api.id,
+      capabilities: {
+        temperature: true,
+        reasoning: false,
+        attachment: true,
+        toolcall: true,
+        input: { text: true, audio: false, image: true, video: false, pdf: true },
+        output: { text: true, audio: false, image: false, video: false, pdf: false },
+        interleaved: false,
+      },
+      cost: { input: 0.003, output: 0.015, cache: { read: 0.0003, write: 0.00375 } },
+      limit: { context: 200000, output: 8192 },
+      status: "active",
+      options: {},
+      headers: {},
+    }) as any
+
+  const base64ByteSize = (b64: string) => {
+    const padding = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0
+    return Math.floor((b64.length * 3) / 4) - padding
+  }
+
+  // 6 MB of raw base64 bytes. Not a decodable jpeg/png, so if it ever hit the
+  // cap path it would be STRIPPED to a placeholder — which makes "left untouched"
+  // an unambiguous signal that no cap was applied.
+  const sixMbJunk = Buffer.alloc(6_000_000, 0x42).toString("base64")
+
+  test("baseline: fixture exceeds the anthropic 5MB hard limit", () => {
+    expect(base64ByteSize(sixMbJunk)).toBeGreaterThan(PROVIDER_HARD_LIMIT)
+  })
+
+  const userMsgs = () =>
+    [{ role: "user", content: [{ type: "image", image: `data:image/webp;base64,${sixMbJunk}` }] }] as any[]
+
+  const toolMsgs = () =>
+    [
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "call_1",
+            toolName: "read",
+            output: { type: "content", value: [{ type: "media", mediaType: "image/webp", data: sixMbJunk }] },
+          },
+        ],
+      },
+    ] as any[]
+
+  test("anthropic: strips an oversized undecodable user image (cap enforced)", () => {
+    const model = withApi("anthropic", {
+      id: "claude-3-5-sonnet-20241022",
+      url: "https://api.anthropic.com",
+      npm: "@ai-sdk/anthropic",
+    })
+    const part = (ProviderTransform.message(userMsgs(), model, {})[0].content as any[])[0]
+    expect(part.type).toBe("text")
+    expect(part.text).toContain("Image omitted")
+  })
+
+  test("bedrock: strips an oversized undecodable tool-result image (cap enforced)", () => {
+    const model = withApi("amazon-bedrock", {
+      id: "anthropic.claude-opus-4-6",
+      url: "https://bedrock-runtime.us-east-1.amazonaws.com",
+      npm: "@ai-sdk/amazon-bedrock",
+    })
+    const entry = (ProviderTransform.message(toolMsgs(), model, {})[0].content[0] as any).output.value[0]
+    expect(entry.type).toBe("text")
+    expect(entry.text).toContain("Image omitted")
+  })
+
+  test("openai: leaves a 6MB user image UNTOUCHED (no cap for non-anthropic)", () => {
+    const model = withApi("openai", { id: "gpt-4o", url: "https://api.openai.com", npm: "@ai-sdk/openai" })
+    const part = (ProviderTransform.message(userMsgs(), model, {})[0].content as any[])[0]
+    expect(part).toEqual({ type: "image", image: `data:image/webp;base64,${sixMbJunk}` })
+  })
+
+  test("openai: leaves a 6MB tool-result image UNTOUCHED (no cap for non-anthropic)", () => {
+    const model = withApi("openai", { id: "gpt-4o", url: "https://api.openai.com", npm: "@ai-sdk/openai" })
+    const entry = (ProviderTransform.message(toolMsgs(), model, {})[0].content[0] as any).output.value[0]
+    expect(entry).toEqual({ type: "media", mediaType: "image/webp", data: sixMbJunk })
+  })
+
+  test("openrouter claude: still caps (routes to anthropic) — strips oversized image", () => {
+    const model = withApi(
+      "openrouter",
+      { id: "anthropic/claude-sonnet-4", url: "https://openrouter.ai/api", npm: "@openrouter/ai-sdk-provider" },
+      "openrouter/anthropic/claude-sonnet-4",
+    )
+    const part = (ProviderTransform.message(userMsgs(), model, {})[0].content as any[])[0]
+    expect(part.type).toBe("text")
+    expect(part.text).toContain("Image omitted")
+  })
+
+  test("openrouter non-claude: leaves a 6MB image UNTOUCHED (no anthropic route)", () => {
+    const model = withApi(
+      "openrouter",
+      { id: "openai/gpt-4o", url: "https://openrouter.ai/api", npm: "@openrouter/ai-sdk-provider" },
+      "openrouter/openai/gpt-4o",
+    )
+    const part = (ProviderTransform.message(userMsgs(), model, {})[0].content as any[])[0]
+    expect(part).toEqual({ type: "image", image: `data:image/webp;base64,${sixMbJunk}` })
+  })
+})
+
 describe("ProviderTransform.message - anthropic empty content filtering", () => {
   const anthropicModel = {
     id: "anthropic/claude-3-5-sonnet",
