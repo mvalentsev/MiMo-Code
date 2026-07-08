@@ -429,20 +429,65 @@ function shrinkBase64(
 const OVERSIZE_PLACEHOLDER = (size: number, maxSize: number) =>
   `[Image omitted: ${size} bytes exceeds the ${maxSize}-byte limit and could not be compressed.]`
 
+// Per-provider inline-image byte cap. Only Anthropic and Bedrock reject a single
+// image whose decoded base64 exceeds ~5 MB with a non-retryable 400 — that is the
+// limit DEFAULT_MAX_IMAGE_BYTES is tuned to. Every other provider we route to
+// accepts larger images, so capping them just wastes cycles recompressing and
+// degrades quality for no reason. Returns Infinity (no cap) for those.
+//
+// Detection mirrors supportsCacheMarkers: match the Anthropic/Bedrock SDKs and
+// providerIDs directly, and for multi-model gateways (gateway/openrouter/copilot)
+// only the Claude/Anthropic models — a Claude behind a gateway still terminates
+// at the Anthropic API and inherits its 5 MB limit.
+function providerImageCap(model: Provider.Model): number {
+  const npm = model.api.npm
+  if (
+    npm === "@ai-sdk/anthropic" ||
+    npm === "@ai-sdk/google-vertex/anthropic" ||
+    npm === "@ai-sdk/amazon-bedrock"
+  )
+    return DEFAULT_MAX_IMAGE_BYTES
+  if (
+    model.providerID === "anthropic" ||
+    model.providerID === "google-vertex-anthropic" ||
+    model.providerID.includes("bedrock")
+  )
+    return DEFAULT_MAX_IMAGE_BYTES
+  if (
+    npm === "@ai-sdk/gateway" ||
+    npm === "@openrouter/ai-sdk-provider" ||
+    npm === "@ai-sdk/github-copilot"
+  ) {
+    const routesToAnthropic =
+      model.api.id.includes("claude") ||
+      model.api.id.includes("anthropic") ||
+      model.id.includes("claude") ||
+      model.id.includes("anthropic")
+    if (routesToAnthropic) return DEFAULT_MAX_IMAGE_BYTES
+  }
+  return Infinity
+}
+
 // Two responsibilities:
 // 1. Count cap (maxImages): drop the oldest excess *user* prompt images.
-// 2. Size cap (maxSize, default DEFAULT_MAX_IMAGE_BYTES): for EVERY image the
-//    provider would measure — user `image` parts AND tool-result `media`/
-//    `image-data`/`file-data` parts on tool/assistant messages — recompress
-//    oversized ones under the limit, or strip them to a text placeholder.
+// 2. Size cap (maxSize): for EVERY image the provider would measure — user
+//    `image` parts AND tool-result `media`/`image-data`/`file-data` parts on
+//    tool/assistant messages — recompress oversized ones under the limit, or
+//    strip them to a text placeholder.
 //
-// The size cap runs by default (no flag needed) because a single >5 MB image in
-// history otherwise 400s on every subsequent request and permanently wedges the
-// session — a non-retryable client error. Stripping/compressing it in transform,
-// which runs immediately before send, self-heals such "poison" history.
-function limitImages(msgs: ModelMessage[]): ModelMessage[] {
+// The size cap is PROVIDER-AWARE (providerImageCap): only Anthropic/Bedrock have
+// the ~5 MB hard limit, so only they get DEFAULT_MAX_IMAGE_BYTES; other providers
+// get Infinity (untouched). An explicit Flag.MIMOCODE_MAX_PROMPT_IMAGE_SIZE always
+// wins when set.
+//
+// For the capped providers the size cap runs by default (no flag needed) because a
+// single >5 MB image in history otherwise 400s on every subsequent request and
+// permanently wedges the session — a non-retryable client error. Stripping/
+// compressing it in transform, which runs immediately before send, self-heals such
+// "poison" history (including images already sitting in history / tool_result).
+function limitImages(msgs: ModelMessage[], model: Provider.Model): ModelMessage[] {
   const maxImages = Flag.MIMOCODE_MAX_PROMPT_IMAGES
-  const maxSize = Flag.MIMOCODE_MAX_PROMPT_IMAGE_SIZE ?? DEFAULT_MAX_IMAGE_BYTES
+  const maxSize = Flag.MIMOCODE_MAX_PROMPT_IMAGE_SIZE ?? providerImageCap(model)
 
   const total = msgs.reduce(
     (sum, msg) =>
@@ -454,14 +499,26 @@ function limitImages(msgs: ModelMessage[]): ModelMessage[] {
   // Drop the oldest excess images so the most recent ones reach the model.
   let toDrop = maxImages === undefined ? 0 : Math.max(0, total - maxImages)
 
+  // The provider content shape for tool-result output values is untyped in the
+  // AI SDK, so we narrow the one variant we act on: base64 image bytes carried
+  // as `media` / `image-data` / `file-data`. Anything else is passed through.
+  type MediaEntry = { type: "media" | "image-data" | "file-data"; data: string; mediaType: string }
+  const isImageMediaEntry = (entry: unknown): entry is MediaEntry => {
+    if (!entry || typeof entry !== "object") return false
+    const e = entry as Record<string, unknown>
+    return (
+      (e.type === "media" || e.type === "image-data" || e.type === "file-data") &&
+      typeof e.data === "string" &&
+      typeof e.mediaType === "string" &&
+      e.mediaType.startsWith("image/")
+    )
+  }
+
   // Enforce the byte-size cap on one tool-result content entry. Rewrites the
   // media bytes in place when we can recompress, otherwise swaps it for a text
   // entry so the oversized payload never reaches the provider.
-  const capToolMedia = (entry: any): any => {
-    if (!entry || typeof entry !== "object") return entry
-    if (entry.type !== "media" && entry.type !== "image-data" && entry.type !== "file-data") return entry
-    if (typeof entry.data !== "string" || typeof entry.mediaType !== "string") return entry
-    if (!entry.mediaType.startsWith("image/")) return entry
+  const capToolMedia = (entry: unknown) => {
+    if (!isImageMediaEntry(entry)) return entry
     const size = base64ByteSize(entry.data)
     if (size <= maxSize) return entry
     const shrunk = shrinkBase64(entry.mediaType, entry.data, maxSize)
@@ -473,6 +530,9 @@ function limitImages(msgs: ModelMessage[]): ModelMessage[] {
     if (!Array.isArray(msg.content)) return msg
 
     // Tool-result images live on tool/assistant messages, not user messages.
+    // The SDK's tool-result `output.value` union is opaque, so this branch stays
+    // loosely typed for reconstruction — the typed narrowing happens in
+    // `capToolMedia`/`isImageMediaEntry` on each entry.
     if (msg.role === "tool" || msg.role === "assistant") {
       const content = msg.content.map((part: any) => {
         if (part?.type !== "tool-result") return part
@@ -523,7 +583,7 @@ function mapProviderOptions(
 
 export function message(msgs: ModelMessage[], model: Provider.Model, options: Record<string, unknown>) {
   msgs = unsupportedParts(msgs, model)
-  msgs = limitImages(msgs)
+  msgs = limitImages(msgs, model)
   msgs = normalizeMessages(msgs, model, options)
   if (supportsCacheMarkers(model)) {
     msgs = applyCaching(msgs, model)
