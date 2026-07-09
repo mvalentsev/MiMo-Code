@@ -113,7 +113,7 @@ function seedSessionWithWriter() {
   })
 }
 
-describe("renderRebuildContext does not block on an in-flight writer", () => {
+describe("renderRebuildContext: non-blocking on real content, blocks only on template-only", () => {
   it.live(
     "on-disk checkpoint present + writer in-flight → returns promptly using the file",
     provideTmpdirInstance(() =>
@@ -141,31 +141,29 @@ describe("renderRebuildContext does not block on an in-flight writer", () => {
   )
 
   it.live(
-    "writer in-flight bootstraps the checkpoint template, so rebuild still takes the non-blocking path",
+    "on-disk file is only the bare template + writer in-flight → blocks (won't rebuild from placeholders)",
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
         const svc = yield* SessionCheckpoint.Service
         const info = yield* seedSessionWithWriter()
 
-        // We do NOT write checkpoint.md ourselves here. tryStartCheckpointWriter
-        // bootstraps checkpoint.md from a template before the writer's first
-        // turn (ensureCheckpointTemplate), so an on-disk file exists even though
-        // the writer (hanging) has not produced real content yet. This documents
-        // that the "block on first-ever writer" branch is genuinely rare in
-        // practice: the file is created eagerly, so rebuild takes the fast,
-        // non-blocking path instead of waiting on the hung writer.
+        // tryStartCheckpointWriter bootstraps checkpoint.md from the bare
+        // template (all "(none yet)") before the writer produces real content.
+        // The file therefore EXISTS but carries no distilled context yet.
+        // Rebuilding from it would push placeholder noise and drop the session's
+        // real context — so the fix must NOT take the fast path here; it must
+        // wait (bounded) for the writer to write real content.
         const onDisk = yield* svc.hasCheckpoint(info.id)
-        expect(onDisk).toBe(true)
+        expect(onDisk).toBe(true) // file exists...
 
-        const started = Date.now()
+        // ...but because it's template-only, renderRebuildContext blocks on the
+        // (hanging) writer. Bound the observation to 2s and assert it is STILL
+        // waiting (None) rather than having returned a placeholder rebuild. This
+        // is the regression guard for the "template ≠ usable content" bug.
         const result = yield* svc
           .renderRebuildContext(info.id, { agentID: "main" })
-          .pipe(Effect.timeout("5 seconds"), Effect.option)
-        const elapsedMs = Date.now() - started
-
-        // Returned (Some), not stuck on the 60s wait.
-        expect(result._tag).toBe("Some")
-        expect(elapsedMs).toBeLessThan(5_000)
+          .pipe(Effect.timeout("2 seconds"), Effect.option)
+        expect(result._tag).toBe("None")
       }),
     ),
   )

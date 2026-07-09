@@ -1058,30 +1058,36 @@ export const layer: Layer.Layer<
       if (inFlight) {
         // A checkpoint writer runs in the background and can take minutes on a
         // large range. We must NOT block the user-facing rebuild on it when we
-        // already have an on-disk checkpoint.md to rebuild from — doing so
-        // stalls the main agent (the user sees "no response"), which in
-        // practice leads to a manual abort that tears down the worker and kills
-        // the very writer we were waiting for, so the token count never falls
-        // and the session wedges. Instead: if a checkpoint file already exists,
-        // use it immediately and let the writer keep refreshing it in the
-        // background. Only block when there is NO on-disk checkpoint at all
-        // (first-ever checkpoint for this session), because then waiting is the
-        // only way to produce any rebuild context; even then, cap the wait.
-        const onDisk = yield* Effect.promise(() => Bun.file(checkpointPath(sessionID)).exists())
-        if (onDisk) {
+        // already have USABLE on-disk content to rebuild from — blocking stalls
+        // the main agent (user sees "no response"), which in practice leads to a
+        // manual abort that tears down the worker and kills the very writer we
+        // were waiting for, so the token count never falls and the session
+        // wedges.
+        //
+        // But "file exists" is NOT the right test. tryStartCheckpointWriter
+        // bootstraps checkpoint.md from a bare TEMPLATE (all "(none yet)")
+        // BEFORE it registers the writer, so the file exists immediately even on
+        // the very first checkpoint — before the writer has distilled any real
+        // content. Rebuilding off that template would push placeholder noise and
+        // effectively DROP the session's context (the whole point of the first
+        // checkpoint). So the real question is: does the file have real content?
+        //   - has real content (a prior checkpoint, or this writer already wrote)
+        //       → use it now, let the writer refresh in the background (no block).
+        //   - only the pristine template (first checkpoint, writer mid-flight)
+        //       → block bounded on the writer so we rebuild from real content,
+        //         not placeholders. Surface a visible busy status so the wait
+        //         isn't a silent hang (historically the trigger for manual abort).
+        const onDiskText = yield* Effect.promise(() =>
+          Bun.file(checkpointPath(sessionID)).text().catch(() => ""),
+        )
+        const hasRealContent = onDiskText.trim().length > 0 && onDiskText.trim() !== CHECKPOINT_TEMPLATE.trim()
+        if (hasRealContent) {
           log.info("rebuild using on-disk checkpoint; writer still running in background", { sessionID })
         } else {
-          // Defensive branch, rarely reached: tryStartCheckpointWriter bootstraps
-          // checkpoint.md from a template BEFORE it registers the writer, so
-          // whenever `inFlight` is truthy an on-disk file almost always exists
-          // and we took the fast path above. We only land here if that file is
-          // somehow absent mid-flight (e.g. deleted). In that case waiting is the
-          // only way to get any rebuild context, so block (bounded) and surface a
-          // visible busy status so the wait isn't a silent hang. Published on the
-          // bus directly (same event SessionStatus.set uses) to avoid a hard
-          // dependency on SessionStatus.Service; the runLoop owns the surrounding
-          // busy/idle lifecycle and resets it after.
-          log.info("rebuild waiting for first-ever writer (no on-disk checkpoint yet)", { sessionID })
+          log.info("rebuild waiting for writer — on-disk checkpoint is empty/template only", { sessionID })
+          // Published on the bus directly (same event SessionStatus.set uses) to
+          // avoid a hard dependency on SessionStatus.Service; the runLoop owns
+          // the surrounding busy/idle lifecycle and resets it after.
           yield* bus
             .publish(SessionStatus.Event.Status, {
               sessionID,
@@ -1092,7 +1098,7 @@ export const layer: Layer.Layer<
             Deferred.await(inFlight.writing).pipe(Effect.as("done" as const)),
             Effect.sleep("60 seconds").pipe(
               Effect.tap(() =>
-                Effect.sync(() => log.warn("first-writer wait timeout — proceeding without checkpoint", { sessionID })),
+                Effect.sync(() => log.warn("writer wait timeout — proceeding with template checkpoint", { sessionID })),
               ),
               Effect.as("timeout" as const),
             ),
