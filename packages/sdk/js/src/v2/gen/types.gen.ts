@@ -5283,6 +5283,58 @@ export type PermissionListResponses = {
 
 export type PermissionListResponse = PermissionListResponses[keyof PermissionListResponses]
 
+export type PermissionSkipAllData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/permission/skip-all"
+}
+
+export type PermissionSkipAllResponses = {
+  /**
+   * Current skip-all state
+   */
+  200: boolean
+}
+
+export type PermissionSkipAllResponse = PermissionSkipAllResponses[keyof PermissionSkipAllResponses]
+
+export type PermissionSetSkipAllData = {
+  body?: {
+    /**
+     * Whether skip-all is enabled
+     */
+    enabled: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/permission/skip-all"
+}
+
+export type PermissionSetSkipAllErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type PermissionSetSkipAllError = PermissionSetSkipAllErrors[keyof PermissionSetSkipAllErrors]
+
+export type PermissionSetSkipAllResponses = {
+  /**
+   * Updated skip-all state
+   */
+  200: boolean
+}
+
+export type PermissionSetSkipAllResponse = PermissionSetSkipAllResponses[keyof PermissionSetSkipAllResponses]
+
 export type WorkflowListData = {
   body?: never
   path?: never
