@@ -25,6 +25,7 @@ import z from "zod"
 import { Plugin } from "../plugin"
 import { Provider } from "../provider"
 import { Worktree } from "../worktree"
+import { Git } from "../git"
 import { ProviderID, type ModelID } from "../provider/schema"
 import { WebSearchTool } from "./websearch"
 import { CodeSearchTool } from "./codesearch"
@@ -115,6 +116,10 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/ToolRegistry") {}
 
+// SessionTool's `dashboard` verb correlates worktrees via Git.Service. Git is a
+// leaf layer (needs only ChildProcessSpawner) with no shared state, so the
+// registry self-provides it rather than leaking Git.Service as an external
+// requirement onto every consumer (production wiring + ~20 test harnesses).
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -409,7 +414,7 @@ export const layer = Layer.effect(
 
     return Service.of({ ids, all, named, tools, reload })
   }),
-)
+).pipe(Layer.provide(Git.defaultLayer))
 
 export const defaultLayer = Layer.suspend(() =>
   layer.pipe(
