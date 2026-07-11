@@ -289,11 +289,41 @@ function isBedrockModelId(id: string): boolean {
 //
 // Runs at the pre-send choke point, so it also self-heals history that already
 // ends in an assistant turn (e.g. a retry after an interrupted generation).
-function dropTrailingAssistantPrefill(msgs: ModelMessage[]): ModelMessage[] {
+//
+// Exported so the reactive error-body retry in session/llm.ts can prune and
+// re-send when a gateway that name-matching missed rejects the prefill at 400.
+export function dropTrailingAssistantPrefill(msgs: ModelMessage[]): ModelMessage[] {
   let end = msgs.length
   while (end > 0 && msgs[end - 1].role === "assistant") end--
   if (end === msgs.length) return msgs
   return msgs.slice(0, end)
+}
+
+// Signature of the non-retryable 400 a Bedrock Converse backend returns when the
+// conversation ends with an assistant (prefill) message — including when reached
+// through an Anthropic-messages gateway that exposes a clean model alias, so
+// supportsAssistantPrefill's id/providerID matching never flags it and the
+// prefill is sent anyway. The error body reads:
+//   "This model does not support assistant message prefill. The conversation
+//    must end with a user message." (Service: BedrockRuntime)
+// Matching the deterministic failure text is provider-agnostic: it works
+// regardless of gateway naming, providerID, or model-id namespace. We inspect
+// both the error message and the raw response body, case-insensitively, and key
+// only on the specific prefill-rejection phrase — not all 400s.
+const ASSISTANT_PREFILL_REJECTION = /does not support assistant message prefill|must end with a user message/i
+
+export function isAssistantPrefillRejection(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false
+  const e = error as { message?: unknown; responseBody?: unknown; statusCode?: unknown }
+  const status = typeof e.statusCode === "string" ? Number.parseInt(e.statusCode, 10) : e.statusCode
+  // The prefill rejection is always a 400; require it so an unrelated error that
+  // happens to echo the phrase (e.g. our own log line) can't trigger a reprune.
+  if (typeof status === "number" && !Number.isNaN(status) && status !== 400) return false
+  const haystack = [
+    typeof e.message === "string" ? e.message : "",
+    typeof e.responseBody === "string" ? e.responseBody : "",
+  ].join("\n")
+  return ASSISTANT_PREFILL_REJECTION.test(haystack)
 }
 
 // The cache-control marker shape differs per provider/SDK. This is the single

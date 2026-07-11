@@ -1265,4 +1265,128 @@ describe("session.llm.stream", () => {
       },
     })
   })
+
+  // T63b follow-up: a Bedrock backend fronted by an Anthropic-messages gateway
+  // under a clean alias (providerID "anthropic", bare id "claude-opus-4-6")
+  // slips past ProviderTransform.supportsAssistantPrefill, so the proactive
+  // transform KEEPS the trailing assistant prefill and the gateway 400s with
+  // "does not support assistant message prefill". This asserts the reactive
+  // safety net: on that specific error body the stream retries exactly once with
+  // the trailing assistant pruned, and the second request ends with a user msg.
+  test("retries once dropping the trailing assistant prefill on a Bedrock/gateway prefill-rejection 400", async () => {
+    const server = state.server
+    if (!server) throw new Error("Server not initialized")
+
+    // Real user scenario: Anthropic-messages front door, bare claude id → the
+    // proactive detection does NOT flag it, so attempt 1 sends the prefill.
+    const providerID = "anthropic"
+    const modelID = "claude-opus-4-6"
+    const fixture = await loadFixture(providerID, modelID)
+    const model = fixture.model
+
+    // The deterministic non-retryable 400 a BedrockRuntime backend returns.
+    const prefillRejection = () =>
+      new Response(
+        JSON.stringify({
+          type: "error",
+          error: {
+            type: "invalid_request_error",
+            message:
+              "This model does not support assistant message prefill. The conversation must end with a user message. (Service: BedrockRuntime)",
+          },
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      )
+
+    const successChunks = [
+      {
+        type: "message_start",
+        message: { id: "msg-ok", model: model.id, usage: { input_tokens: 3 } },
+      },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "ok" } },
+      { type: "content_block_stop", index: 0 },
+      {
+        type: "message_delta",
+        delta: { stop_reason: "end_turn", stop_sequence: null },
+        usage: { input_tokens: 3, output_tokens: 1 },
+      },
+      { type: "message_stop" },
+    ]
+
+    // Queue is FIFO: attempt 1 → 400 prefill-rejection, attempt 2 → success.
+    const first = waitRequest("/messages", prefillRejection())
+    const second = waitRequest("/messages", createEventResponse(successChunks))
+
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await Bun.write(
+          path.join(dir, "mimocode.json"),
+          JSON.stringify({
+            $schema: "https://opencode.ai/config.json",
+            enabled_providers: [providerID],
+            provider: {
+              [providerID]: {
+                options: { apiKey: "test-anthropic-key", baseURL: `${server.url.origin}/v1` },
+              },
+            },
+          }),
+        )
+      },
+    })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const resolved = await getModel(ProviderID.make(providerID), ModelID.make(model.id))
+        // Sanity: this model is NOT proactively detected as prefill-rejecting,
+        // so attempt 1 genuinely sends the prefill (the bug's precondition).
+        expect(resolved.api.npm).toBe("@ai-sdk/anthropic")
+
+        const sessionID = SessionID.make("session-prefill-retry")
+        const agent = {
+          name: "test",
+          mode: "primary",
+          options: {},
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+        } satisfies Agent.Info
+
+        const user = {
+          id: MessageID.make("user-prefill"),
+          sessionID,
+          role: "user",
+          time: { created: Date.now() },
+          agent: agent.name,
+          model: { providerID: ProviderID.make(providerID), modelID: resolved.id },
+        } satisfies MessageV2.User
+
+        // Conversation ends with an assistant (prefill) turn.
+        await drain({
+          user,
+          sessionID,
+          model: resolved,
+          agent,
+          system: ["You are a helpful assistant."],
+          retries: 0, // isolate our reactive retry from the SDK's internal loop
+          messages: [
+            { role: "user", content: "Write a JSON object." },
+            { role: "assistant", content: [{ type: "text", text: "{" }] },
+          ],
+          tools: {},
+        })
+
+        const firstBody = (await Promise.race([first, timeout(10_000)])).body
+        const secondBody = (await Promise.race([second, timeout(10_000)])).body
+
+        const firstMsgs = firstBody.messages as Array<{ role: string }>
+        const secondMsgs = secondBody.messages as Array<{ role: string }>
+
+        // Attempt 1 sent the prefill (ended with assistant) → gateway 400'd.
+        expect(firstMsgs[firstMsgs.length - 1].role).toBe("assistant")
+        // Attempt 2 (the reactive retry) dropped it → ends with a user message.
+        expect(secondMsgs.length).toBeGreaterThan(0)
+        expect(secondMsgs[secondMsgs.length - 1].role).toBe("user")
+      },
+    })
+  })
 })

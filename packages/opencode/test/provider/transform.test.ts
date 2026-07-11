@@ -1921,6 +1921,66 @@ describe("ProviderTransform.message - assistant prefill (Bedrock rejects trailin
   })
 })
 
+describe("ProviderTransform.isAssistantPrefillRejection - error-body detection (T63b follow-up)", () => {
+  // The clean-alias gateway case supportsAssistantPrefill misses: providerID
+  // "anthropic", bare id "claude-opus-4-8", no dotted-vendor namespace. The only
+  // reliable signal is the deterministic 400 body, so detection keys off that.
+  const bedrockPrefillBody = JSON.stringify({
+    message: "This model does not support assistant message prefill. The conversation must end with a user message.",
+    Service: "BedrockRuntime",
+  })
+
+  test("detects the AI SDK APICallError shape (statusCode 400 + responseBody)", () => {
+    const error = {
+      name: "AI_APICallError",
+      statusCode: 400,
+      responseBody: bedrockPrefillBody,
+      message: "Bad Request",
+      isRetryable: false,
+    }
+    expect(ProviderTransform.isAssistantPrefillRejection(error)).toBe(true)
+  })
+
+  test("detects the phrase in the error message even when responseBody is absent", () => {
+    const error = {
+      statusCode: 400,
+      message: "This model does not support assistant message prefill.",
+    }
+    expect(ProviderTransform.isAssistantPrefillRejection(error)).toBe(true)
+  })
+
+  test("detects the 'must end with a user message' variant (case-insensitive)", () => {
+    const error = { statusCode: 400, responseBody: "The conversation MUST END WITH A USER MESSAGE." }
+    expect(ProviderTransform.isAssistantPrefillRejection(error)).toBe(true)
+  })
+
+  test("matches when statusCode is a numeric string (some gateways stringify it)", () => {
+    const error = { statusCode: "400", responseBody: bedrockPrefillBody }
+    expect(ProviderTransform.isAssistantPrefillRejection(error)).toBe(true)
+  })
+
+  test("does NOT match an unrelated 400 (no prefill phrase)", () => {
+    const error = { statusCode: 400, responseBody: JSON.stringify({ message: "invalid_request: bad tool schema" }) }
+    expect(ProviderTransform.isAssistantPrefillRejection(error)).toBe(false)
+  })
+
+  test("does NOT match a non-400 status even if the phrase appears (must be the 400 rejection)", () => {
+    const error = { statusCode: 500, responseBody: "does not support assistant message prefill" }
+    expect(ProviderTransform.isAssistantPrefillRejection(error)).toBe(false)
+  })
+
+  test("does NOT match null / undefined / non-object", () => {
+    expect(ProviderTransform.isAssistantPrefillRejection(undefined)).toBe(false)
+    expect(ProviderTransform.isAssistantPrefillRejection(null)).toBe(false)
+    expect(ProviderTransform.isAssistantPrefillRejection("does not support assistant message prefill")).toBe(false)
+  })
+
+  test("matches when statusCode is absent but the phrase is present (stream-body error without a parsed status)", () => {
+    const error = { message: "400 does not support assistant message prefill (Service: BedrockRuntime)" }
+    expect(ProviderTransform.isAssistantPrefillRejection(error)).toBe(true)
+  })
+})
+
 describe("ProviderTransform.message - strip openai metadata when store=false", () => {
   const openaiModel = {
     id: "openai/gpt-5",
