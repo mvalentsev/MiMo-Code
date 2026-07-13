@@ -394,13 +394,6 @@ function base64ByteSize(base64: string): number {
   return Math.floor((base64.length * 3) / 4) - padding
 }
 
-// Returns the decoded byte size of a base64 data URL, or undefined for inputs
-// that aren't data URLs (remote URLs, raw binary) and therefore can't be sized.
-function imageByteSize(image: string): number | undefined {
-  if (!image.startsWith("data:")) return undefined
-  return base64ByteSize(image.slice(image.indexOf(",") + 1))
-}
-
 // Split a data URL into its mime + raw base64. Returns undefined for anything
 // that isn't a base64 data URL.
 function parseDataUrl(image: string): { mime: string; base64: string } | undefined {
@@ -409,6 +402,49 @@ function parseDataUrl(image: string): { mime: string; base64: string } | undefin
   if (comma === -1) return undefined
   const mime = image.slice(5, image.indexOf(";") === -1 ? comma : image.indexOf(";"))
   return { mime, base64: image.slice(comma + 1) }
+}
+
+type ImagePayload =
+  | { kind: "data-url" | "base64"; mime?: string; base64: string; size: number }
+  | { kind: "bytes"; mime?: string; bytes: Uint8Array; size: number }
+
+function isRawBase64(value: string) {
+  if (!value || value.length % 4 === 1) return false
+  return /^[a-z0-9+/_-]+={0,2}$/i.test(value)
+}
+
+function compactBase64(value: string) {
+  return value.replace(/[\t\n\f\r ]/g, "")
+}
+
+// AI SDK normalizes user files before middleware runs: data URLs become raw
+// base64 strings, binary DataContent becomes Uint8Array, and remote URLs remain
+// URL objects. Accept the pre-conversion data-URL shape too because tests and
+// a few internal callers still pass ModelMessage values directly.
+function imagePayload(value: unknown, mediaType?: string): ImagePayload | undefined {
+  if (value instanceof URL) return undefined
+  if (typeof value === "string") {
+    const parsed = parseDataUrl(value)
+    if (parsed) {
+      const base64 = compactBase64(parsed.base64)
+      if (!isRawBase64(base64)) return undefined
+      return {
+        kind: "data-url",
+        mime: parsed.mime || mediaType,
+        base64,
+        size: base64ByteSize(base64),
+      }
+    }
+
+    const base64 = compactBase64(value)
+    if (!isRawBase64(base64)) return undefined
+    return { kind: "base64", mime: mediaType, base64, size: base64ByteSize(base64) }
+  }
+
+  const bytes =
+    value instanceof ArrayBuffer ? new Uint8Array(value) : value instanceof Uint8Array ? value : undefined
+  if (!bytes) return undefined
+  return { kind: "bytes", mime: mediaType, bytes, size: bytes.byteLength }
 }
 
 // Bring one oversized image under maxSize: recompress if we can decode it,
@@ -469,11 +505,12 @@ function providerImageCap(model: Provider.Model): number {
 }
 
 // Two responsibilities:
-// 1. Count cap (maxImages): drop the oldest excess *user* prompt images.
+// 1. Count cap (maxImages): drop the oldest excess *user* prompt images,
+//    including image-typed `file` parts produced by synthetic tool attachments.
 // 2. Size cap (maxSize): for EVERY image the provider would measure — user
-//    `image` parts AND tool-result `media`/`image-data`/`file-data` parts on
-//    tool/assistant messages — recompress oversized ones under the limit, or
-//    strip them to a text placeholder.
+//    `image`/image-`file` parts AND tool-result `media`/`image-data`/`file-data`
+//    parts on tool/assistant messages — recompress oversized ones under the
+//    limit, or strip them to a text placeholder.
 //
 // The size cap is PROVIDER-AWARE (providerImageCap): only Anthropic/Bedrock have
 // the ~5 MB hard limit, so only they get DEFAULT_MAX_IMAGE_BYTES; other providers
@@ -497,7 +534,10 @@ function limitImages(msgs: ModelMessage[], model: Provider.Model): ModelMessage[
   const total = msgs.reduce(
     (sum, msg) =>
       msg.role === "user" && Array.isArray(msg.content)
-        ? sum + msg.content.filter((part) => part.type === "image").length
+        ? sum +
+          msg.content.filter(
+            (part) => part.type === "image" || (part.type === "file" && part.mediaType.startsWith("image/")),
+          ).length
         : sum,
     0,
   )
@@ -550,19 +590,39 @@ function limitImages(msgs: ModelMessage[], model: Provider.Model): ModelMessage[
 
     if (msg.role !== "user") return msg
     const content = msg.content.map((part) => {
-      if (part.type !== "image") return part
+      const isImageFile = part.type === "file" && part.mediaType.startsWith("image/")
+      if (part.type !== "image" && !isImageFile) return part
       if (toDrop > 0) {
         toDrop--
-        return { type: "text" as const, text: `[Image omitted: exceeds the configured limit of ${maxImages} prompt image(s).]` }
+        return {
+          type: "text" as const,
+          text: `[Image omitted: exceeds the configured limit of ${maxImages} prompt image(s).]`,
+        }
       }
-      const size = imageByteSize(String(part.image))
-      if (size === undefined || size <= maxSize) return part
-      const parsed = parseDataUrl(String(part.image))
-      if (parsed && parsed.mime.startsWith("image/")) {
-        const shrunk = shrinkBase64(parsed.mime, parsed.base64, maxSize)
-        if (shrunk) return { ...part, image: `data:${shrunk.mime};base64,${shrunk.base64}` }
+      const payload = imagePayload(
+        part.type === "image" ? part.image : part.data,
+        part.mediaType,
+      )
+      if (!payload || payload.size <= maxSize) return part
+      if (payload.mime?.startsWith("image/")) {
+        const base64 =
+          payload.kind === "bytes"
+            ? Buffer.from(payload.bytes.buffer, payload.bytes.byteOffset, payload.bytes.byteLength).toString("base64")
+            : payload.base64
+        const shrunk = shrinkBase64(payload.mime, base64, maxSize)
+        if (shrunk) {
+          const data =
+            payload.kind === "data-url"
+              ? `data:${shrunk.mime};base64,${shrunk.base64}`
+              : payload.kind === "bytes"
+                ? new Uint8Array(Buffer.from(shrunk.base64, "base64"))
+                : shrunk.base64
+          return part.type === "image"
+            ? { ...part, image: data, mediaType: shrunk.mime }
+            : { ...part, data, mediaType: shrunk.mime }
+        }
       }
-      return { type: "text" as const, text: OVERSIZE_PLACEHOLDER(size, maxSize) }
+      return { type: "text" as const, text: OVERSIZE_PLACEHOLDER(payload.size, maxSize) }
     })
     return { ...msg, content }
   })

@@ -121,6 +121,10 @@ describe("session tool attachment routing", () => {
     expect(routeToolAttachment({ model: prefixed, attachment: attachment("audio/wav"), allowNative: true })).toBe(
       "synthetic",
     )
+    const modelsPrefixed = makeModel({ npm: "@ai-sdk/google", id: "models/gemini-3-pro-preview", audio: true })
+    expect(routeToolAttachment({ model: modelsPrefixed, attachment: attachment("audio/wav"), allowNative: true })).toBe(
+      "synthetic",
+    )
     const uppercase = makeModel({ npm: "@ai-sdk/google", id: "GEMINI-3-PRO-PREVIEW", audio: true })
     expect(routeToolAttachment({ model: uppercase, attachment: attachment("audio/wav"), allowNative: true })).toBe(
       "synthetic",

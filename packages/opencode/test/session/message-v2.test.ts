@@ -770,6 +770,86 @@ describe("session.message-v2.toModelMessage", () => {
     )
   })
 
+  test("caps oversized synthetic error images before sending them to Anthropic", async () => {
+    const anthropicModel = withInputCapabilities(
+      { image: true },
+      {
+        ...model,
+        id: ModelID.make("anthropic/claude-opus-4-7"),
+        providerID: ProviderID.make("anthropic"),
+        api: {
+          id: "claude-opus-4-7-20250805",
+          url: "https://api.anthropic.com",
+          npm: "@ai-sdk/anthropic",
+        },
+      },
+    )
+    const oversized = Buffer.alloc(6_000_000, 0x42).toString("base64")
+    const userID = "m-user-oversized-error"
+    const assistantID = "m-assistant-oversized-error"
+    const input: MessageV2.WithParts[] = [
+      {
+        info: userInfo(userID),
+        parts: [{ ...basePart(userID, "u1-oversized-error"), type: "text", text: "run tool" }] as MessageV2.Part[],
+      },
+      {
+        info: assistantInfo(assistantID, userID),
+        parts: [
+          {
+            ...basePart(assistantID, "a1-oversized-error"),
+            type: "tool",
+            callID: "call-oversized-error",
+            tool: "computer",
+            state: {
+              status: "error",
+              input: {},
+              error: "capture failed",
+              time: { start: 0, end: 1 },
+              metadata: {},
+              attachments: [
+                {
+                  ...basePart(assistantID, "file-oversized-error"),
+                  type: "file",
+                  mime: "image/webp",
+                  filename: "error-state.webp",
+                  url: `data:image/webp;base64,${oversized}`,
+                },
+              ],
+            },
+          },
+        ] as MessageV2.Part[],
+      },
+    ]
+
+    const messages = await MessageV2.toModelMessages(input, anthropicModel)
+    const synthetic = messages.at(-1)
+    expect(synthetic?.role).toBe("user")
+    expect(
+      Array.isArray(synthetic?.content) &&
+        synthetic.content.some((part) => part.type === "file" && part.mediaType === "image/webp"),
+    ).toBe(true)
+
+    // streamText converts data URLs to raw base64 before invoking the model
+    // middleware where ProviderTransform.message runs.
+    const providerPrompt = messages.map((message) => {
+      if (message !== synthetic || message.role !== "user" || !Array.isArray(message.content)) return message
+      return {
+        ...message,
+        content: message.content.map((part) =>
+          part.type === "file" && part.mediaType === "image/webp" ? { ...part, data: oversized } : part,
+        ),
+      }
+    })
+    const transformed = ProviderTransform.message(providerPrompt, anthropicModel, {})
+    const content = transformed.at(-1)?.content
+    expect(
+      Array.isArray(content) && content.some((part) => part.type === "text" && part.text.includes("Image omitted")),
+    ).toBe(true)
+    expect(
+      Array.isArray(content) && content.some((part) => part.type === "file" && part.mediaType === "image/webp"),
+    ).toBe(false)
+  })
+
   test("keeps synthetic attachments correlated with multiple tool calls", async () => {
     const userID = "m-user-groups"
     const assistantID = "m-assistant-groups"

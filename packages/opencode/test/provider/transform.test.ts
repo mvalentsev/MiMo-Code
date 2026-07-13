@@ -1378,6 +1378,7 @@ describe("ProviderTransform.message - provider-aware image size cap", () => {
   // cap path it would be STRIPPED to a placeholder — which makes "left untouched"
   // an unambiguous signal that no cap was applied.
   const sixMbJunk = Buffer.alloc(6_000_000, 0x42).toString("base64")
+  const wrappedSixMbJunk = sixMbJunk.replace(/.{76}/g, "$&\n")
 
   test("baseline: fixture exceeds the anthropic 5MB hard limit", () => {
     expect(base64ByteSize(sixMbJunk)).toBeGreaterThan(PROVIDER_HARD_LIMIT)
@@ -1401,6 +1402,14 @@ describe("ProviderTransform.message - provider-aware image size cap", () => {
       },
     ] as any[]
 
+  const fileMsgs = (data: string | Uint8Array | URL) =>
+    [
+      {
+        role: "user",
+        content: [{ type: "file", mediaType: "image/webp", filename: "capture.webp", data }],
+      },
+    ] as any[]
+
   test("anthropic: strips an oversized undecodable user image (cap enforced)", () => {
     const model = withApi("anthropic", {
       id: "claude-3-5-sonnet-20241022",
@@ -1410,6 +1419,31 @@ describe("ProviderTransform.message - provider-aware image size cap", () => {
     const part = (ProviderTransform.message(userMsgs(), model, {})[0].content as any[])[0]
     expect(part.type).toBe("text")
     expect(part.text).toContain("Image omitted")
+  })
+
+  test("anthropic: caps normalized raw-base64 and byte-array image files", () => {
+    const model = withApi("anthropic", {
+      id: "claude-3-5-sonnet-20241022",
+      url: "https://api.anthropic.com",
+      npm: "@ai-sdk/anthropic",
+    })
+
+    for (const data of [sixMbJunk, wrappedSixMbJunk, Buffer.from(sixMbJunk, "base64")]) {
+      const part = (ProviderTransform.message(fileMsgs(data), model, {})[0].content as any[])[0]
+      expect(part.type).toBe("text")
+      expect(part.text).toContain("Image omitted")
+    }
+  })
+
+  test("anthropic: leaves remote image-file URLs untouched", () => {
+    const model = withApi("anthropic", {
+      id: "claude-3-5-sonnet-20241022",
+      url: "https://api.anthropic.com",
+      npm: "@ai-sdk/anthropic",
+    })
+    const remote = new URL("https://example.com/capture.webp")
+    const part = (ProviderTransform.message(fileMsgs(remote), model, {})[0].content as any[])[0]
+    expect(part).toEqual({ type: "file", mediaType: "image/webp", filename: "capture.webp", data: remote })
   })
 
   test("bedrock: strips an oversized undecodable tool-result image (cap enforced)", () => {
@@ -1427,6 +1461,17 @@ describe("ProviderTransform.message - provider-aware image size cap", () => {
     const model = withApi("openai", { id: "gpt-4o", url: "https://api.openai.com", npm: "@ai-sdk/openai" })
     const part = (ProviderTransform.message(userMsgs(), model, {})[0].content as any[])[0]
     expect(part).toEqual({ type: "image", image: `data:image/webp;base64,${sixMbJunk}` })
+  })
+
+  test("openai: leaves a 6MB raw-base64 image file UNTOUCHED (no cap for non-anthropic)", () => {
+    const model = withApi("openai", { id: "gpt-4o", url: "https://api.openai.com", npm: "@ai-sdk/openai" })
+    const part = (ProviderTransform.message(fileMsgs(sixMbJunk), model, {})[0].content as any[])[0]
+    expect(part).toEqual({
+      type: "file",
+      mediaType: "image/webp",
+      filename: "capture.webp",
+      data: sixMbJunk,
+    })
   })
 
   test("openai: leaves a 6MB tool-result image UNTOUCHED (no cap for non-anthropic)", () => {

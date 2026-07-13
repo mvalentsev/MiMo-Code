@@ -17,6 +17,9 @@ const ANTHROPIC_PACKAGES = new Set(["@ai-sdk/anthropic", "@ai-sdk/google-vertex/
 const GOOGLE_PACKAGES = new Set(["@ai-sdk/google", "@ai-sdk/google-vertex"])
 
 function isGemini3(model: Provider.Model) {
+  // Keep this aligned with @ai-sdk/google's functionResponse.parts gate.
+  // Prefixed or case-variant IDs must use synthetic attachments; routing them
+  // as native would make the provider serialize binary parts as legacy JSON.
   return model.api.id.startsWith("gemini-3")
 }
 
