@@ -63,6 +63,7 @@ import { composeSkillsBlock } from "@/skill/compose/extract"
 import { builtinSkillRoot, matchDocumentSkills } from "@/skill/builtin/extract"
 import { ToolRegistry } from "../tool"
 import { MCP } from "../mcp"
+import { normalizeToolResult } from "../mcp/tool-result"
 import { LSP } from "../lsp"
 import { Flag } from "../flag/flag"
 import { ulid } from "ulid"
@@ -111,6 +112,7 @@ import { Team } from "@/team"
 import { ActorRegistry } from "@/actor/registry"
 import { Metrics } from "@/metrics"
 import { resolveInvocationStyle, type ToolStyleConfig } from "../tool/invocation-style"
+import { ToolResultError } from "../tool/result-error"
 import { shouldAutoDream, shouldAutoDistill, DREAM_TASK, DISTILL_TASK, AUTO_DREAM_TITLE, AUTO_DISTILL_TITLE } from "./auto-dream"
 
 // @ts-ignore
@@ -1126,70 +1128,67 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               const result: Awaited<ReturnType<NonNullable<typeof execute>>> = yield* Effect.promise(() =>
                 execute(mcpBeforeOutput.args, opts),
               )
-              log.debug("tool execute done (mcp)", {
-                tool: key,
-                callID,
-                durationMs: Date.now() - startTs,
-                ok: true,
-              })
               yield* plugin.trigger(
                 "tool.execute.after",
                 { tool: key, sessionID: ctx.sessionID, callID: opts.toolCallId, args },
                 result,
               )
 
-              const textParts: string[] = []
+              const normalized = normalizeToolResult(result)
+              log.debug("tool execute done (mcp)", {
+                tool: key,
+                callID,
+                durationMs: Date.now() - startTs,
+                ok: !normalized.isError,
+              })
+
+              const truncated = yield* truncate.output(
+                normalized.output,
+                { outcome: normalized.isError ? "error" : "success" },
+                input.agent,
+              )
+              const metadata = {
+                ...normalized.metadata,
+                truncated: truncated.truncated,
+                ...(truncated.truncated && { outputPath: truncated.outputPath }),
+              }
+
+              if (normalized.isError) {
+                return yield* Effect.fail(
+                  new ToolResultError(truncated.content.trim() || "MCP tool execution failed", metadata),
+                )
+              }
+
               yield* bus
                 .publish(Metrics.ToolCall, {
                   sessionID: ctx.sessionID,
                   tool_name: key,
                   input_bytes: Metrics.jsonByteLength(args),
-                  output_bytes: Metrics.jsonByteLength(result.content ?? ""),
+                  output_bytes: Metrics.jsonByteLength({
+                    content: normalized.content,
+                    structuredContent: normalized.structuredContent,
+                  }),
                   tool_call_id: opts.toolCallId,
                   tool_call_status: "success",
                 })
                 .pipe(Effect.ignore)
-              const attachments: Omit<MessageV2.FilePart, "id" | "sessionID" | "messageID">[] = []
-              for (const contentItem of result.content) {
-                if (contentItem.type === "text") textParts.push(contentItem.text)
-                else if (contentItem.type === "image") {
-                  attachments.push({
-                    type: "file",
-                    mime: contentItem.mimeType,
-                    url: `data:${contentItem.mimeType};base64,${contentItem.data}`,
-                  })
-                } else if (contentItem.type === "resource") {
-                  const { resource } = contentItem
-                  if (resource.text) textParts.push(resource.text)
-                  if (resource.blob) {
-                    attachments.push({
-                      type: "file",
-                      mime: resource.mimeType ?? "application/octet-stream",
-                      url: `data:${resource.mimeType ?? "application/octet-stream"};base64,${resource.blob}`,
-                      filename: resource.uri,
-                    })
-                  }
-                }
-              }
-
-              const truncated = yield* truncate.output(textParts.join("\n\n"), {}, input.agent)
-              const metadata = {
-                ...result.metadata,
-                truncated: truncated.truncated,
-                ...(truncated.truncated && { outputPath: truncated.outputPath }),
-              }
 
               const output = {
                 title: "",
                 metadata,
                 output: truncated.content,
-                attachments: attachments.map((attachment) => ({
+                attachments: normalized.attachments.map((attachment) => ({
+                  type: "file" as const,
                   ...attachment,
                   id: PartID.ascending(),
                   sessionID: ctx.sessionID,
                   messageID: input.processor.message.id,
                 })),
-                content: result.content,
+                content: normalized.content,
+                ...(normalized.structuredContent === undefined
+                  ? {}
+                  : { structuredContent: normalized.structuredContent }),
+                isError: false,
               }
               if (opts.abortSignal?.aborted) {
                 yield* input.processor.completeToolCall(opts.toolCallId, output)
