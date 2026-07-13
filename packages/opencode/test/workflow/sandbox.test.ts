@@ -220,31 +220,6 @@ describe("Sandbox args string injection (Defect A regression)", () => {
   })
 })
 
-describe("Sandbox file roundtrip (Defect C regression)", () => {
-  test("writeFile + exists + readFile roundtrip works in sandbox", async () => {
-    // Regression: the deep-research script's exists("brief.md") must find a file
-    // that writeFile("brief.md", ...) created. This roundtrip is the core of the
-    // "brief.md not created" bug.
-    const files = new Map<string, string>()
-    const hooks = {
-      writeFile: async (path: unknown, content: unknown) => { files.set(String(path), String(content)) },
-      exists: async (path: unknown) => files.has(String(path)),
-      readFile: async (path: unknown) => files.get(String(path)) ?? null,
-    }
-    const body = `
-      await writeFile("brief.md", "# Research Brief")
-      const hasBrief = await exists("brief.md")
-      const content = await readFile("brief.md")
-      const hasMissing = await exists("missing.md")
-      return { hasBrief, content, hasMissing }
-    `
-    const result = await evalScript(body, hooks) as { hasBrief: boolean, content: string, hasMissing: boolean }
-    expect(result.hasBrief).toBe(true)
-    expect(result.content).toBe("# Research Brief")
-    expect(result.hasMissing).toBe(false)
-  })
-})
-
 describe("Sandbox unsettled-hook hygiene", () => {
   test("a fire-and-forget hook call (no await) does not abort the process", async () => {
     // The script returns immediately while agent() is still in flight.

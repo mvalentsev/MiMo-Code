@@ -29,17 +29,9 @@ workflow() cycle detection is asymmetric: a SAVED name is checked by name (so A 
 When invoking a named built-in, `args` can be a bare string (auto-normalized to the workflow's primary arg) or an object.
 
 ### deep-research
-Required args: `question` (string) — the research question. A bare string arg is auto-normalized to `{question: <string>}`.
-Optional args: `dir` (string, auto-injected to workspace root), `today` (string YYYY-MM-DD, auto-injected from host), `depth` ("quick"|"standard"|"deep"), `context` (string).
-Example: `workflow({operation:"run", name:"deep-research", args:"What are the latest advances in X?"})`
-
-## Built-in workflow args
-
-When invoking a named built-in, `args` can be a bare string (auto-normalized to the workflow's primary arg) or an object.
-
-### deep-research
 `args`: string (treated as `question`) | object with:
-  - `question` (required): the research question
+  - `question` (required): the research question. A bare string arg is auto-normalized to `{question: <string>}`.
   - `depth` (optional): "quick" | "standard" | "deep" (default "standard")
   - `context` (optional): additional context for the brief step
-  - `dir` and `today` are auto-injected by the host — you do NOT need to pass them.
+  - `dir` and `today` are auto-injected by the host (workspace root and host YYYY-MM-DD respectively) — you do NOT need to pass them.
+Example: `workflow({operation:"run", name:"deep-research", args:"What are the latest advances in X?"})`

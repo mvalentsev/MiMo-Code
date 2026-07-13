@@ -167,7 +167,7 @@ export const WorkflowTool = Tool.define<typeof parameters, Metadata, Config.Serv
           typeof raw === "object" && raw !== null
             ? { ...(raw as Record<string, unknown>) }
             : typeof raw === "string"
-              ? parseComposeArgString(raw)
+              ? parseArgsAsQuestion(raw)
               : {}
         // dir must equal the workspace root: the sandbox file primitives (exists,
         // writeFile, readFile, glob) are jailed there, and the script's agent
