@@ -15,7 +15,7 @@ import { Log } from "../util"
 import { NamedError } from "@mimo-ai/shared/util/error"
 import z from "zod/v4"
 import { Installation } from "../installation"
-import { InstallationVersion } from "../installation/version"
+import { createClient } from "./client"
 import { withTimeout } from "@/util/timeout"
 import { AppFileSystem } from "@mimo-ai/shared/filesystem"
 import { McpOAuthProvider } from "./oauth-provider"
@@ -273,7 +273,7 @@ export const layer = Layer.effect(
         (t) =>
           Effect.tryPromise({
             try: () => {
-              const client = new Client({ name: "mimocode", version: InstallationVersion })
+              const client = createClient()
               return withTimeout(client.connect(t), timeout).then(() => client)
             },
             catch: (e) => (e instanceof Error ? e : new Error(String(e))),
@@ -777,7 +777,7 @@ export const layer = Layer.effect(
 
       return yield* Effect.tryPromise({
         try: () => {
-          const client = new Client({ name: "mimocode", version: InstallationVersion })
+          const client = createClient()
           return client
             .connect(transport)
             .then(() => ({ authorizationUrl: "", oauthState, client }) satisfies AuthResult)
