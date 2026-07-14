@@ -8,7 +8,9 @@ import { Log } from "../util"
 import { SessionRevert } from "./revert"
 import * as Session from "./session"
 import { Agent } from "../agent/agent"
-import { decideAskRouting } from "@/agent/config"
+import { decideAskRouting, SYSTEM_SPAWNED_AGENT_TYPES } from "@/agent/config"
+import { renderActorNotification } from "@/inbox/render"
+import { parseReturnHeader } from "@/actor/return-header"
 import { Provider } from "../provider"
 import { ModelID, ProviderID } from "../provider/schema"
 import {
@@ -87,7 +89,7 @@ import {
 import { prefixCaptureRef } from "./prefix-capture-ref"
 import { spawnRef } from "@/actor/spawn-ref"
 import { Inbox } from "@/inbox"
-import { sessionPromptRef } from "@/inbox/inbox-ref"
+import { sessionPromptRef, defaultModelRef } from "@/inbox/inbox-ref"
 import { Tool } from "@/tool"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
@@ -131,6 +133,22 @@ export function recallHintLines(toolCfg: ToolStyleConfig | undefined): string[] 
       : `- actor({ operation: "status", actor_id: "<id>" })`
   // memory has no shell form (no shell.parse) → always JSON.
   return [`- memory({ operation: "search", query: "<keyword>" })`, taskHint, actorHint]
+}
+
+// The orchestrator root session is PERSISTENT and coordinates many tasks over
+// its lifetime, so its title must be stable and task-independent — it must not
+// be renamed by the per-first-message auto-title generator as tasks come and
+// go. Any root session driven by the orchestrator agent keeps this fixed name.
+export const ORCHESTRATOR_TITLE = "Orchestrator"
+
+// Returns the stable, task-independent title a root session should keep instead
+// of a per-message auto-generated one, or undefined when normal auto-titling
+// applies. Pure + exported for unit testing. `agent` is the triggering agent's
+// name (e.g. "orchestrator"); `parentID` distinguishes root from child sessions.
+export function stableRootTitle(input: { agent: string | undefined; parentID: string | undefined }): string | undefined {
+  if (input.parentID) return undefined
+  if (input.agent === "orchestrator") return ORCHESTRATOR_TITLE
+  return undefined
 }
 
 /**
@@ -249,7 +267,7 @@ export interface Interface {
   readonly shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts>
   readonly command: (input: CommandInput) => Effect.Effect<MessageV2.WithParts>
   readonly resolvePromptParts: (template: string) => Effect.Effect<PromptInput["parts"]>
-  readonly sweepOrphanAssistants: (sessionID: SessionID) => Effect.Effect<void>
+  readonly sweepOrphanAssistants: (sessionID: SessionID, immediate?: boolean) => Effect.Effect<void>
   readonly predict: (input: { sessionID: SessionID }) => Effect.Effect<string>
 }
 
@@ -439,11 +457,25 @@ export const layer = Layer.effect(
 
     const title = Effect.fn("SessionPrompt.ensureTitle")(function* (input: {
       session: Session.Info
+      agent: string | undefined
       history: MessageV2.WithParts[]
       providerID: ProviderID
       modelID: ModelID
     }) {
       if (input.session.parentID) return
+
+      // Persistent orchestrator root session: keep a stable, task-independent
+      // title. Set it once (if still the default) and SKIP the per-first-message
+      // LLM title generation so later tasks never rename it.
+      const stable = stableRootTitle({ agent: input.agent, parentID: input.session.parentID })
+      if (stable) {
+        if (Session.isDefaultTitle(input.session.title))
+          yield* sessions
+            .setTitle({ sessionID: input.session.id, title: stable })
+            .pipe(Effect.catchCause((cause) => elog.error("failed to set stable title", { error: Cause.squash(cause) })))
+        return
+      }
+
       if (!Session.isDefaultTitle(input.session.title)) return
 
       const real = (m: MessageV2.WithParts) =>
@@ -895,8 +927,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         ? yield* actorRegistry.get(input.session.id, input.agentID)
         : undefined
       // Three-way permission-ask routing (see decideAskRouting): system agent ->
-      // auto-deny; orchestrator peer -> FORWARD for approval; other background ->
-      // auto-deny; normal -> interactive.
+      // auto-deny; orchestrator peer -> FORWARD for approval; ordinary background
+      // subagent -> INHERIT the parent's held grants; normal -> interactive.
       const askRouting = decideAskRouting({
         askActor: askActor
           ? {
@@ -1989,7 +2021,20 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return { info, parts }
     }, Effect.scoped)
 
-    const sweepOrphanAssistants = Effect.fn("SessionPrompt.sweepOrphanAssistants")(function* (sessionID: SessionID) {
+    const sweepOrphanAssistants = Effect.fn("SessionPrompt.sweepOrphanAssistants")(function* (
+      sessionID: SessionID,
+      // When true, sweep dangling assistants regardless of age. The caller sets
+      // this when the session is idle (no active runner), meaning any assistant
+      // without time.completed is definitively orphaned — left behind by a hard
+      // interruption (process crash / kill / disconnect) that skipped the normal
+      // `finish` effect, not an in-flight retry chain. Sweeping immediately
+      // matters because the TUI derives its "pending" marker from the newest
+      // incomplete assistant (routes/session/index.tsx `pending`): a stale
+      // orphan otherwise makes EVERY newly submitted message on an idle session
+      // render as stuck QUEUED for up to ORPHAN_AGE_MS (an hour). Defaults to
+      // false so background callers (spawn/hook) keep the age guard.
+      immediate = false,
+    ) {
       const msgs = yield* sessions.messages({ sessionID, agentID: "*" })
       const now = Date.now()
       // 1 hour — must exceed Task 1's chunkMs (300s) plus Task 2's
@@ -2001,7 +2046,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         if (m.info.role !== "assistant") continue
         if (m.info.time?.completed) continue
         const created = m.info.time?.created ?? 0
-        if (now - created < ORPHAN_AGE_MS) continue
+        if (!immediate && now - created < ORPHAN_AGE_MS) continue
         m.info.time = { ...m.info.time, completed: now }
         m.info.error =
           m.info.error ??
@@ -2029,7 +2074,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         const session = yield* sessions.get(input.sessionID)
         if (input.source !== "spawn" && input.source !== "hook") {
           yield* revert.cleanup(session)
-          yield* sweepOrphanAssistants(input.sessionID)
+          // An idle session has no active runner, so any dangling assistant is a
+          // true orphan from a hard interruption — sweep it now (age-independent)
+          // so a fresh message is not rendered as stuck QUEUED behind it.
+          const idle = (yield* status.get(input.sessionID)).type === "idle"
+          yield* sweepOrphanAssistants(input.sessionID, idle)
         }
         const message = yield* createUserMessage(input)
         yield* sessions.touch(input.sessionID)
@@ -2068,10 +2117,13 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       throw new Error("Impossible")
     })
 
-    const runLoop: (sessionID: SessionID, agentID?: string, task_id?: string) => Effect.Effect<MessageV2.WithParts> = Effect.fn(
-      "SessionPrompt.run",
-    )(
-      function* (sessionID: SessionID, agentID?: string, task_id?: string) {
+    const runLoop: (
+      sessionID: SessionID,
+      agentID?: string,
+      task_id?: string,
+      notifyParentOnComplete?: boolean,
+    ) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.run")(
+      function* (sessionID: SessionID, agentID?: string, task_id?: string, notifyParentOnComplete?: boolean) {
         const ctx = yield* InstanceState.context
         const slog = elog.with({ sessionID })
         let structured: unknown | undefined
@@ -2906,9 +2958,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           }
 
           step++
+          // Per-step turn heartbeat: only writer of turn_count; advances last_turn_time/time_updated so the orchestrator can tell progressing children from stalled ones. Safe 0-row no-op when no registry row exists.
+          yield* actorRegistry.updateTurn(sessionID, resolvedAgentID).pipe(Effect.ignore)
           if (step === 1)
             yield* title({
               session,
+              agent: lastUser.agent,
               modelID: lastUser.model.modelID,
               providerID: lastUser.model.providerID,
               history: msgs,
@@ -3848,6 +3903,49 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           finalIsError ? "error" : "completed",
           Option.isSome(lastUserForMetrics) ? lastUserForMetrics.value.info.agent : final.info.agent,
         )
+        // Woken-peer completion signal. forkWork.notify only wraps the FIRST
+        // (spawn) turn; a persistent background peer that finishes a later,
+        // inbox-driven turn would otherwise go idle silently and force the
+        // orchestrator to poll. When this loop was woken via the inbox path
+        // (notifyParentOnComplete), mirror forkWork's actor_notification to the
+        // parent so the event-driven model holds. Gated to background peers and
+        // excludes system subagents (checkpoint-writer/dream/distill). The flag
+        // is never set on the spawn turn, so turn 1 is not double-notified.
+        if (notifyParentOnComplete && agentID && session.parentID) {
+          const actor = yield* actorRegistry.get(sessionID, agentID)
+          if (
+            actor &&
+            actor.mode === "peer" &&
+            actor.background &&
+            !SYSTEM_SPAWNED_AGENT_TYPES.has(actor.agent)
+          ) {
+            const finalText =
+              final.info.role === "assistant" ? assistantFinalText(final.info, final.parts) : undefined
+            const parsed = parseReturnHeader(finalText)
+            const status = finalIsError ? "failed" : "completed"
+            yield* inbox
+              .send({
+                receiverSessionID: session.parentID,
+                receiverActorID: actor.parentActorID ?? "main",
+                senderSessionID: sessionID,
+                senderActorID: agentID,
+                type: "actor_notification",
+                content: renderActorNotification({
+                  actorID: agentID,
+                  description: actor.description,
+                  status,
+                  ...(status === "completed"
+                    ? {
+                        result: finalText ?? "(no output)",
+                        ...(parsed.status ? { reportedStatus: parsed.status } : {}),
+                        ...(parsed.summary ? { reportedSummary: parsed.summary } : {}),
+                      }
+                    : { error: final.info.role === "assistant" ? sessionErrorText(final.info.error) : "unknown" }),
+                }),
+              })
+              .pipe(Effect.ignore)
+          }
+        }
         return final
         }).pipe(Effect.onExit(firePostSession), Effect.orDie)
       },
@@ -3861,7 +3959,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         input.sessionID,
         agentID,
         lastAssistant(input.sessionID, agentID),
-        runLoop(input.sessionID, agentID, input.task_id),
+        runLoop(input.sessionID, agentID, input.task_id, input.notifyParentOnComplete),
       )
     })
 
@@ -4077,9 +4175,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       predict,
     })
     sessionPromptRef.current = { loop: impl.loop }
+    // Expose the project default-model resolver to Inbox.drain's option-2
+    // fallback (seed a synthetic message for a turnCount-0 standing peer whose
+    // slice has no model-bearing message yet). Reads Provider, which is already
+    // in scope here — Inbox.layer stays free of a Provider dependency.
+    const defaultModelResolver = { defaultModel: () => provider.defaultModel() }
+    defaultModelRef.current = defaultModelResolver
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
         if (sessionPromptRef.current?.loop === impl.loop) sessionPromptRef.current = undefined
+        if (defaultModelRef.current === defaultModelResolver) defaultModelRef.current = undefined
       }),
     )
     return impl
@@ -4205,6 +4310,11 @@ export const LoopInput = z.object({
   sessionID: SessionID.zod,
   agentID: z.string().optional(),
   task_id: z.string().optional(),
+  // Set by the inbox wake path so a persistent background peer that finishes a
+  // woken turn notifies its parent (mirroring forkWork.notify, which only wraps
+  // the FIRST/spawn turn). Left false on spawn/user-driven loops to avoid
+  // double-notifying the spawn turn that forkWork already covers.
+  notifyParentOnComplete: z.boolean().optional(),
 })
 
 export const ShellInput = z.object({
