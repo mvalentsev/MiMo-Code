@@ -65,6 +65,7 @@ import { builtinSkillRoot, matchDocumentSkills } from "@/skill/builtin/extract"
 import { ToolRegistry } from "../tool"
 import { MCP } from "../mcp"
 import { normalizeToolResult } from "../mcp/tool-result"
+import { toolScriptMcp } from "../tool/tool-script-ref"
 import { LSP } from "../lsp"
 import { Flag } from "../flag/flag"
 import { ulid } from "ulid"
@@ -303,6 +304,12 @@ export const layer = Layer.effect(
     const llm = yield* LLM.Service
     const actorRegistry = yield* ActorRegistry.Service
     const inbox = yield* Inbox.Service
+
+    // Late-bound ref (see tool-script-ref.ts): tool_script dispatches MCP tools
+    // through the same live client set the agent sees. Populated here (not in
+    // ToolRegistry) because MCP's layer lives in this graph — the registry
+    // providing MCP.defaultLayer itself would duplicate client connections.
+    toolScriptMcp.current = () => mcp.tools()
 
     // Track sessions that have already shown the "loaded instructions" toast so we
     // surface it once per primary session rather than on every run-loop turn.

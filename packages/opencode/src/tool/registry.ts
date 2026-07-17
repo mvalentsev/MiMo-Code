@@ -69,7 +69,7 @@ import * as BashInteractive from "./bash-interactive"
 import { resolveInvocationStyle } from "./invocation-style"
 import { BuiltinWorkflow } from "@/workflow/builtin"
 import { ToolScriptTool, renderToolScriptDeclarations } from "./tool-script"
-import { toolScriptRegistry } from "./tool-script-ref"
+import { toolScriptRegistry, toolScriptMcp } from "./tool-script-ref"
 
 const log = Log.create({ service: "tool.registry" })
 
@@ -282,7 +282,7 @@ export const layer = Layer.effect(
             tool.memory,
             tool.history,
             tool.task,
-            tool.toolscript,
+            ...(Flag.MIMOCODE_ENABLE_TOOL_SCRIPT ? [tool.toolscript] : []),
             ...(Flag.MIMOCODE_EXPERIMENTAL_CRON ? [tool.cron] : []),
             ...(Flag.MIMOCODE_EXPERIMENTAL_ORCHESTRATOR ? [tool.session] : []),
             ...(Flag.MIMOCODE_EXPERIMENTAL_WORKFLOW_TOOL ? [tool.workflow] : []),
@@ -332,7 +332,10 @@ export const layer = Layer.effect(
     })
 
     const describeToolScript = Effect.fn("ToolRegistry.describeToolScript")(function* () {
-      return renderToolScriptDeclarations(yield* all())
+      // MCP declarations ride along when SessionPrompt has populated the ref
+      // (interactive sessions); registry-only contexts render builtins only.
+      const mcp = toolScriptMcp.current ? yield* toolScriptMcp.current() : {}
+      return renderToolScriptDeclarations(yield* all(), mcp)
     })
 
     const describeTask = Effect.fn("ToolRegistry.describeTask")(function* (agent: Agent.Info) {

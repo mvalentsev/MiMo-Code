@@ -43,6 +43,18 @@ export type SandboxOptions = {
 
 const DEFAULT_DEADLINE_MS = 12 * 60 * 60 * 1000
 const DEFAULT_MEMORY = 64 * 1024 * 1024
+
+/** Guest rejection values dump as {name, message, stack} objects — render them
+ * like a normal Error string instead of leaking a JSON blob into the message. */
+function formatGuestError(err: unknown): string {
+  if (typeof err === "string") return err
+  if (err && typeof err === "object" && "message" in err) {
+    const e = err as { name?: string; message: string; stack?: string }
+    const head = e.name && e.name !== "Error" ? `${e.name}: ${e.message}` : String(e.message)
+    return e.stack ? `${head}\n${e.stack.trimEnd()}` : head
+  }
+  return JSON.stringify(err)
+}
 /** Fallback seed when no caller-supplied seed is set. Stable so the existing
  * single-shot tests stay deterministic. The runtime always passes seed=hash(runID)
  * so production paths never see this default. */
@@ -195,7 +207,7 @@ export async function evalScript(body: string, hooks: Record<string, HostFn>, op
     if (evalRes.error) {
       const err = vm.dump(evalRes.error)
       evalRes.error.dispose()
-      throw new Error(`workflow script error: ${typeof err === "string" ? err : JSON.stringify(err)}`)
+      throw new Error(`workflow script error: ${formatGuestError(err)}`)
     }
     const promiseHandle = track(evalRes.value)
     // Concurrent pump: a BACKSTOP that drains guest microtasks while we await
@@ -248,7 +260,7 @@ export async function evalScript(body: string, hooks: Record<string, HostFn>, op
       if (resolved.error) {
         const err = vm.dump(resolved.error)
         resolved.error.dispose()
-        throw new Error(`workflow script rejected: ${typeof err === "string" ? err : JSON.stringify(err)}`)
+        throw new Error(`workflow script rejected: ${formatGuestError(err)}`)
       }
       const valueHandle = track(resolved.value)
       return vm.dump(valueHandle)
@@ -320,7 +332,10 @@ function injectHooks(
 /** Marshal a host JS value INTO the guest (by copy via JSON for structured data). */
 function marshalIn(vm: QuickJSContext, value: unknown): QuickJSHandle {
   if (value === undefined || value === null) return vm.undefined
-  if (typeof value === "string") return vm.newString(value)
+  // newString truncates at the first NUL byte (C-string boundary). Route
+  // NUL-containing strings through the JSON path below, where \0 is escaped
+  // as the 6-char sequence \u0000 and restored by the guest's JSON.parse.
+  if (typeof value === "string" && !value.includes("\0")) return vm.newString(value)
   if (typeof value === "number") return vm.newNumber(value)
   if (typeof value === "boolean") return value ? vm.true : vm.false
   const json = vm.newString(JSON.stringify(value))
