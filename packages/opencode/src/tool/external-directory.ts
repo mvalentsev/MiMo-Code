@@ -6,7 +6,7 @@ import { Global } from "@/global"
 import type * as Tool from "./tool"
 import { Instance } from "../project/instance"
 import { ProjectID } from "../project/schema"
-import { assertMemoryWriteAllowed } from "./memory-path-guard"
+import { assertMemoryWriteAllowed, assertAgentWriteSandbox } from "./memory-path-guard"
 import { AppFileSystem } from "@mimo-ai/shared/filesystem"
 
 type Kind = "file" | "directory"
@@ -106,6 +106,25 @@ export const assertWriteAllowed = Effect.fn("Tool.assertWriteAllowed")(function*
       return ProjectID.global
     }
   })()
+
+  // Hard write-sandbox for system agents (dream/distill): confine writes to the
+  // memory tree or <worktree>/.mimocode. Runs before the memory guard so a
+  // sandboxed agent writing an arbitrary source path is rejected up front.
+  const worktree = (() => {
+    try {
+      return Instance.worktree
+    } catch {
+      return undefined
+    }
+  })()
+  if (worktree) {
+    assertAgentWriteSandbox({
+      target,
+      agentName: ctx.agent,
+      memoryRoot: path.join(Global.Path.data, "memory"),
+      worktree,
+    })
+  }
 
   assertMemoryWriteAllowed({
     target,
