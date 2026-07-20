@@ -1,6 +1,6 @@
 ---
 name: mimocode-docs
-description: Use when the user asks what MiMoCode can do, how a feature works (memory, checkpoints, agents, subagents, tasks, compose, voice, dream/distill, goal), how to configure it, where config/data lives, which config key controls a behavior, what CLI or slash commands exist, or how to enable/disable/tune something — the self-documenting reference for MiMoCode itself.
+description: Use when the user asks what MiMoCode can do, how a feature works (memory, checkpoints, agents, subagents, tasks, compose, voice, dream/distill, goal), how to configure arbitrary custom or OpenAI-compatible endpoints with a user-specified base URL (base-url/baseURL), API key (api-key/apiKey), and model name or model ID (model-name), how to configure models, providers, authentication, or other settings in the user home/global config, where config/data lives, which config key controls a behavior, what CLI or slash commands exist, or how to enable/disable/tune something — the self-documenting reference for MiMoCode itself.
 ---
 
 # MiMoCode
@@ -47,6 +47,44 @@ Add `"$schema": "https://mimo.xiaomi.com/mimocode/config.json"` for editor valid
 ```
 
 For the full key reference (model, provider, mcp, permission, agent, checkpoint, compaction, memory, dream, distill, voice, workflow, experimental, command, keybinds, and more) see @reference/config.md. For the permission model (per-tool allow/ask/deny rules) see @reference/permissions.md.
+
+### User-supplied base URL, API key, and model name
+
+When the user supplies all three values, configure them directly instead of limiting them to a known provider catalog. For an OpenAI-compatible endpoint, add a custom provider and make it the selected model:
+
+```jsonc
+{
+  "$schema": "https://mimo.xiaomi.com/mimocode/config.json",
+  "model": "custom/MODEL_NAME",
+  "provider": {
+    "custom": {
+      "name": "Custom",
+      "npm": "@ai-sdk/openai-compatible",
+      "only_configured_models": true,
+      "models": {
+        "MODEL_NAME": {
+          "name": "MODEL_NAME"
+        }
+      },
+      "options": {
+        "baseURL": "BASE_URL",
+        "apiKey": "API_KEY"
+      }
+    }
+  }
+}
+```
+
+- Use the exact camel-case keys `baseURL` and `apiKey`; `base_url`, `base-url`, and `api_key` are not config keys.
+- The `models` map key is the model ID sent to the upstream API. Preserve the user's model name exactly, including `/` when present. The nested `name` is only its display label.
+- The top-level selection must be `<provider-id>/<model-id>`. Model IDs may contain `/`; MiMoCode splits only the first segment as the provider ID.
+- If the user supplies a provider ID, use it. Otherwise reuse a matching custom provider or choose an unused short lowercase ID such as `custom`; update every reference consistently.
+- Treat the base URL as opaque and preserve it exactly; do not add or remove `/v1` or another path unless the user asks.
+- `@ai-sdk/openai-compatible` is the default adapter for an arbitrary endpoint. If the endpoint is not OpenAI-compatible, use its provider-specific `npm` adapter when one exists and explain that a base URL, key, and model name alone cannot change the wire protocol.
+- A supplied `apiKey` may be stored in `options.apiKey`, which the provider runtime reads directly. Do not print the key in the response or expose it in command output; when creating a config containing a secret, restrict its file mode to the user where the platform supports it.
+- For a user-wide/home request, edit `~/.config/mimocode/mimocode.json`; for a project-only request, edit `.mimocode/mimocode.json`. Preserve unrelated providers, models, and settings.
+
+See @reference/config.md for the same shape plus field semantics and verification steps.
 
 ## How-To Guide
 
