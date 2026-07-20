@@ -45,7 +45,7 @@ class LibreOfficeBackend:
 
     @classmethod
     def _discover(cls) -> str:
-        override = os.environ.get(cls._ENV_OVERRIDE)
+        override = os.environ.get(cls._ENV_OVERRIDE) or os.environ.get("MIMO_SOFFICE")
         if override:
             return override
         for candidate in ("soffice", "libreoffice"):
