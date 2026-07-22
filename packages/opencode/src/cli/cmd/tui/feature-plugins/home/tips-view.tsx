@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup } from "solid-js"
 import { DEFAULT_THEMES, useTheme } from "@tui/context/theme"
 import { useLanguage } from "@tui/context/language"
 import { useLocal } from "@tui/context/local"
@@ -6,6 +6,7 @@ import { Flag } from "@/flag/flag"
 
 const themeCount = Object.keys(DEFAULT_THEMES).length
 const TIP_ROTATION_MS = 10_000
+const COMPOSE_LOCK_TIP = "tui.tips.compose_next"
 
 // Weighted tip priority. Higher weight = shown more often.
 // Promote recently-added or critical features so users discover them.
@@ -14,6 +15,7 @@ const PRIORITY_WEIGHTS: Record<string, number> = {
   "tui.tips.multi_skills": 60,
   "tui.tips.free_models": 50,
   "tui.tips.background": 50,
+  "tui.tips.compose_next": 50,
   "tui.tips.login": 40,
   "tui.tips.theme_mode": 40,
   "tui.tips.tab_agent": 40,
@@ -27,6 +29,7 @@ const TIP_KEYS = [
   "tui.tips.multi_skills",
   "tui.tips.free_models",
   "tui.tips.background",
+  "tui.tips.compose_next",
   "tui.tips.theme_mode",
   "tui.tips.doc",
   "tui.tips.attach_file",
@@ -178,9 +181,16 @@ export function Tips() {
   const lang = useLanguage()
   const local = useLocal()
   const allKeys = buildTipKeys(Flag.MIMOCODE_EXPERIMENTAL_ORCHESTRATOR, process.platform)
-  const [key, setKey] = createSignal(pickWeighted(allKeys))
-  const interval = setInterval(() => setKey(pickWeighted(allKeys)), TIP_ROTATION_MS)
+  const isComposeAgent = () => local.agent.current()?.name === "compose"
+  const nextKey = () => (isComposeAgent() ? COMPOSE_LOCK_TIP : pickWeighted(allKeys))
+  const [key, setKey] = createSignal(nextKey())
+  const interval = setInterval(() => setKey(nextKey()), TIP_ROTATION_MS)
   onCleanup(() => clearInterval(interval))
+  // When the current agent becomes Compose, override the tip immediately
+  // (do not wait for the next rotation tick).
+  createEffect(() => {
+    if (isComposeAgent()) setKey(COMPOSE_LOCK_TIP)
+  })
   const parts = createMemo(() => parse(lang.t(key(), { count: themeCount })))
   const labelColor = createMemo(() => {
     const agent = local.agent.current()

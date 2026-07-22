@@ -78,13 +78,7 @@ Three additive deprecation touchpoints:
 
 2. **Home tips — context-aware lock on Compose** — one new tip `tui.tips.compose_next` recommending Build + `/compose-next` is added to the rotating home tips pool (`packages/opencode/src/cli/cmd/tui/feature-plugins/home/tips-view.tsx`) with weight `50`, same tier as `multi_skills` / `free_models`. Additionally, when the current agent is `compose` and the Tips component is mounted (home only), the rotation is **locked** to `tui.tips.compose_next`: the interval timer is cleared and the tip key is fixed to that entry. When the agent changes away from `compose`, the interval restarts and normal weighted rotation resumes. Tab-switching into Compose from home therefore visibly and immediately shows the recommendation in place, without adding any new UI element. Tab-switching in a session view does not affect this — the Tips component only renders on home.
 
-3. **New-session toast on Compose creation** — when a **new** compose session is created (the `sdk.client.session.create({...})` call site while `agent.name === "compose"`), fire one info toast recommending Compose Next:
-
-   > Legacy Compose is deprecated. For Fable/Sol-class models, switch to Build and run `/compose-next`.
-
-   Trigger location: at the successful `session.create` return in `packages/opencode/src/cli/cmd/tui/component/prompt/index.tsx` around L1101, gated by `agent.name === "compose"`. Trigger only on the create branch — resuming an existing compose session, Tab-switching into an already-running compose session, or re-rendering the view does not toast. "Entering Compose" is defined narrowly as "a new compose session came into existence," not "the compose agent became active." A single conditional at the create site is sufficient; no persistent has-seen flag, no session-scoped counter.
-
-The tip lock and the toast are two independent signals for two different moments and are intentionally allowed to co-occur: the tip is a passive background hint on the home view while the user considers the choice; the toast is the confirming reminder at the exact moment the user commits by creating the first compose session. By the time the toast fires, the user has already left the home route (a session route has just been opened), so the tip is unmounted and the two never render on screen at the same instant.
+3. **Agent label suffix "(legacy)"** — the input-bar agent label at `packages/opencode/src/cli/cmd/tui/component/prompt/index.tsx` (currently renders `Locale.titlecase(agent.name)`) shows `Compose (legacy)` when the current agent is `compose`. This is a pure display concern; agent identity and routing remain `compose`. The suffix is intentionally not localized — "legacy" reads the same across the locales this project supports, and adding an i18n key just for a single-word technical suffix costs more than it earns.
 
 This is guidance text, not runtime model detection. No hard model-ID list. Users choose either path.
 
@@ -95,7 +89,6 @@ All user-facing strings introduced by this PR ship translations for every locale
 Keys added:
 
 - `tui.tips.compose_next` — home tip body recommending Build + `/compose-next`.
-- `tui.toast.compose_deprecated` — toast body fired on new compose session creation.
 - `tui.skill.compose-next.description` — description shown in skill dialog / autocomplete / command palette. Naming follows the existing `tui.skill.<name>.description` convention.
 
 The Compose agent description line appended in `agent.ts` is inline English today and stays inline English in this PR — the localized surface for users is the tip and the toast, both keyed above.
@@ -123,9 +116,10 @@ Modify:
 - `packages/opencode/src/agent/agent.ts` — add exact `"compose-next": "deny"` to the default agent's `skill` permission ruleset (adjacent to the existing `"compose:*": "deny"`). Append the deprecation line to the Compose agent block's `description`. Do not add any skill rule to the Compose agent.
 - `packages/opencode/src/session/prompt/compose.txt` — append the same deprecation line as a single-line edit; do not rewrite the file.
 - `packages/opencode/src/tool/skill-search.ts` — resolve current agent from context and source the searchable list from `Skill.available(agent)` instead of `Skill.all()`. Update the tool description string accordingly if needed.
-- `packages/opencode/src/cli/cmd/tui/component/prompt/index.tsx` — at the successful `sdk.client.session.create` return (~L1101), when `agent.name === "compose"`, fire `toast.show({ message: t("tui.toast.compose_deprecated"), variant: "info" })`. Do not touch the resume branch, the orchestrator branch, or any switch/Tab path.
-- `packages/opencode/src/cli/cmd/tui/feature-plugins/home/tips-view.tsx` — add `"tui.tips.compose_next"` to `TIP_KEYS` and to `PRIORITY_WEIGHTS` with weight `50`. Add a reactive lock: when `local.agent.current()?.name === "compose"`, clear the rotation interval and set the tip key to `tui.tips.compose_next`; when it changes back, restart the interval and resume weighted picking. The lock lives entirely inside the Tips component and does not need any state outside home.
-- All seven i18n locale files under `packages/opencode/src/cli/cmd/tui/i18n/` (`en.ts`, `es.ts`, `fr.ts`, `ja.ts`, `ru.ts`, `zh.ts`, `zht.ts`) — add three keys each: `tui.tips.compose_next`, `tui.toast.compose_deprecated`, `tui.skill.compose-next.description`.
+- `packages/opencode/src/cli/cmd/tui/component/prompt/index.tsx` — the input-bar agent label render (currently `Locale.titlecase(agent().name)`) shows `Compose (legacy)` when `agent.name === "compose"`. Pure display change; identity, routing, tab-cycle and everything else remain the same.
+- `packages/opencode/src/cli/cmd/tui/feature-plugins/home/tips-view.tsx` — add `"tui.tips.compose_next"` to `TIP_KEYS` and to `PRIORITY_WEIGHTS` with weight `50`. Compose-agent lock: on each rotation tick pick `tui.tips.compose_next` when the current agent is `compose`, otherwise pick weighted. An additional `createEffect` overrides the tip immediately on compose entry so it does not wait for the next tick.
+- `packages/opencode/src/cli/cmd/tui/feature-plugins/home/tips.tsx` — remove the `first = session.count() === 0` gate so tips render on a fresh project too. Original behavior hid tips from first-time users, which is the population that most needs the guidance.
+- All seven i18n locale files under `packages/opencode/src/cli/cmd/tui/i18n/` (`en.ts`, `es.ts`, `fr.ts`, `ja.ts`, `ru.ts`, `zh.ts`, `zht.ts`) — add two keys each: `tui.tips.compose_next`, `tui.skill.compose-next.description`.
 
 Do not touch:
 
@@ -153,9 +147,9 @@ These are copied via `git checkout origin/compose-slim -- <path>` into a scratch
 - Slash surface: command registry / app skills endpoint returns `compose-next` (Build slash autocomplete works).
 - Skill search: `skill_search` on a query that would otherwise match `compose-next` does not return it under the default agent.
 - Legacy invariants preserved: existing `compose:*` filter tests remain green unchanged.
-- i18n: a light test asserts each of the three new keys is present in all seven locale files (mirror any existing `i18n` completeness test if one exists; if not, add a small one).
+- i18n: a light test asserts each of the two new keys is present in all seven locale files (mirror any existing `i18n` completeness test if one exists; if not, add a small one).
 - Tip lock: on the home view with `agent.name === "compose"`, the current tip key is `tui.tips.compose_next` and no rotation occurs; changing the agent back to a non-compose primary restores rotation.
-- Toast trigger: the toast fires only on the create branch when `agent.name === "compose"`; resume, Tab, and non-compose creation paths do not toast.
+- Agent label suffix: the input-bar label reads `Compose (legacy)` when the current agent is `compose`, and `Build` / `Plan` unchanged for those agents.
 
 ### Verification
 
@@ -185,9 +179,10 @@ Draft PR opens in Ready state (not Draft) since this is the successor implementa
 - Treating model-undiscoverability as a security boundary.
 - Removing Legacy Compose in this PR.
 - Removing Legacy Compose from the Tab-cycle in this PR.
-- Toasting on Tab-switch into Compose or on any resume of an existing compose session.
+- Any deprecation toast (design chose an ambient in-place `(legacy)` label instead).
 - Locking the tip anywhere except on home (session views do not render Tips).
 - Persistent "user has seen this deprecation" state.
+- Localizing the `(legacy)` label — it is a bare technical suffix and reads the same in every supported locale.
 - i18n-keying the Compose agent description text; that path is broader than this PR.
 - Migrating existing Compose feature documents.
 - Plan-mode dissolution and Tab permission-preset changes.
@@ -198,8 +193,8 @@ Draft PR opens in Ready state (not Draft) since this is the successor implementa
 - [ ] T2: add exact `"compose-next": "deny"` to default agent skill permission — acceptance: `Skill.available(defaultAgent)` omits `compose-next`; `Skill.all()` includes it; test asserts both (covers: S2, S3)
 - [ ] T3: switch `tool/skill-search.ts` to `Skill.available(agent)` — acceptance: search over a query matching `compose-next` under the default agent returns no result; existing search tests remain green (covers: S2, S3)
 - [ ] T4: append deprecation line to Compose agent `description` in `agent.ts` and to `compose.txt` opening prompt — acceptance: single-line addition in each; Compose agent behavior otherwise unchanged; existing Compose tests green (covers: S2)
-- [ ] T5: add home tip `tui.tips.compose_next` (weight `50`) to `tips-view.tsx` and implement the compose-agent lock (clear interval + fix key on entry, restart on exit); add key to all seven locale files — acceptance: tip enters the rotation on home; switching to the Compose agent from home immediately shows the compose_next tip and stops rotation; switching away restarts rotation; all seven locales carry the key (covers: S2)
-- [ ] T6: fire deprecation toast on new compose session creation in `component/prompt/index.tsx`; add `tui.toast.compose_deprecated` to all seven locales — acceptance: toast fires only on the create branch when `agent.name === "compose"`; resume and Tab paths do not toast (covers: S2)
+- [ ] T5: add home tip `tui.tips.compose_next` (weight `50`) to `tips-view.tsx` and implement compose-agent lock (pick lock key while agent is compose, resume weighted picking on exit; immediate override via `createEffect` on compose entry); remove the first-session gate in `tips.tsx` so tips also render on a fresh project; add key to all seven locale files — acceptance: tip enters the rotation on home; on a fresh project the tips row still renders; switching to Compose immediately shows compose_next; switching away resumes rotation; all seven locales carry the key (covers: S2)
+- [ ] T6: show `Compose (legacy)` in the input-bar agent label when the current agent is `compose` — acceptance: agent identity, routing, and Tab-cycle unchanged; only the rendered label carries the suffix; label for `build`/`plan` unchanged (covers: S2)
 - [ ] T7: add `tui.skill.compose-next.description` to all seven locales — acceptance: skill dialog / autocomplete render the localized description (covers: S2)
 - [ ] T8: verification band pass — acceptance: relevant `bun test` bands and `bun typecheck` and `git diff --check` all pass from `packages/opencode` (covers: S3)
 - [ ] T9: open the PR (Ready, not Draft); update PR #1850 body with its URL and close #1850 as superseded — acceptance: successor URL recorded on #1850; closure message frames the experiment as graduated (covers: S4)

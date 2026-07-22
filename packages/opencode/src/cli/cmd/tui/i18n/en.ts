@@ -57,6 +57,8 @@ export const dict: Record<string, string> = {
     "Combine multiple {highlight}/skill-name{/highlight} triggers in a single message to use several skills together",
   "tui.tips.background":
     "Run {highlight}/background{/highlight} to set a custom image as your home background",
+  "tui.tips.compose_next":
+    "Try {highlight}/compose-next{/highlight} instead of the Compose agent for frontier models",
   "tui.tips.undo": "Use {highlight}/undo{/highlight} to revert the last message and file changes",
   "tui.tips.redo": "Use {highlight}/redo{/highlight} to restore previously undone messages and file changes",
   "tui.tips.drag_drop": "Drag and drop images or PDFs into the terminal to add them as context",
@@ -239,6 +241,8 @@ export const dict: Record<string, string> = {
   "tui.skill.compose:tdd.description": "Test-driven development — write tests before code",
   "tui.skill.compose:verify.description": "Run verification and confirm passing output",
   "tui.skill.compose:worktree.description": "Create an isolated workspace for feature work",
+  "tui.skill.compose-next.description":
+    "Next-generation orchestration: end-to-end feature work (grill, spec, implement, verify, review, finish) for strong models",
 
   // Language switching
   "tui.command.language.switch.title": "Switch language",

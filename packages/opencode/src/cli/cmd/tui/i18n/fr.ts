@@ -63,6 +63,8 @@ export const dict = {
     "Combinez plusieurs déclencheurs {highlight}/skill-name{/highlight} dans un même message pour utiliser plusieurs Skills ensemble",
   "tui.tips.background":
     "Exécutez {highlight}/background{/highlight} pour définir une image personnalisée comme fond d'écran d'accueil",
+  "tui.tips.compose_next":
+    "Essayez {highlight}/compose-next{/highlight} au lieu de l'agent Compose pour les modèles avancés",
   "tui.tips.undo": "Utilisez {highlight}/undo{/highlight} pour annuler le dernier message et ses modifications",
   "tui.tips.redo": "Utilisez {highlight}/redo{/highlight} pour rétablir des messages et modifications précédemment annulés",
   "tui.tips.drag_drop": "Glissez-déposez des images ou PDF dans le terminal pour les ajouter au contexte",
@@ -302,6 +304,8 @@ export const dict = {
   "tui.skill.compose:tdd.description": "Développement piloté par les tests — tests avant le code",
   "tui.skill.compose:verify.description": "Lancer la vérification et confirmer la réussite",
   "tui.skill.compose:worktree.description": "Créer un espace de travail isolé pour le développement",
+  "tui.skill.compose-next.description":
+    "Nouvelle orchestration : travail sur une fonctionnalité de bout en bout (grill, spec, implémenter, vérifier, revoir, finaliser) pour modèles avancés",
 
   // Language switching
   "tui.command.language.switch.title": "Changer de langue",

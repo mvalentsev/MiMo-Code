@@ -62,6 +62,8 @@ export const dict = {
     "Комбинируйте несколько {highlight}/skill-name{/highlight} в одном сообщении, чтобы использовать несколько Skills одновременно",
   "tui.tips.background":
     "Выполните {highlight}/background{/highlight}, чтобы установить произвольное изображение в качестве фона главной страницы",
+  "tui.tips.compose_next":
+    "Попробуйте {highlight}/compose-next{/highlight} вместо агента Compose для передовых моделей",
   "tui.tips.undo":
     "Используйте {highlight}/undo{/highlight}, чтобы отменить последнее сообщение и изменения файлов",
   "tui.tips.redo":
@@ -317,6 +319,8 @@ export const dict = {
   "tui.skill.compose:tdd.description": "Разработка через тестирование — тесты перед кодом",
   "tui.skill.compose:verify.description": "Запустить проверку и подтвердить успешный результат",
   "tui.skill.compose:worktree.description": "Создать изолированное рабочее пространство",
+  "tui.skill.compose-next.description":
+    "Новое поколение оркестрации: сквозная работа над фичей (grill, spec, реализация, проверка, ревью, финализация) для сильных моделей",
 
   // Language switching
   "tui.command.language.switch.title": "Сменить язык",

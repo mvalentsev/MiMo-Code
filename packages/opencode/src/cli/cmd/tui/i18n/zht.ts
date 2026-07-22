@@ -59,6 +59,8 @@ export const dict = {
   "tui.tips.multi_skills":
     "在同一則訊息中輸入多個 {highlight}/skill-name{/highlight} 可同時組合使用多個 Skills",
   "tui.tips.background": "執行 {highlight}/background{/highlight} 設定自訂圖片作為主頁背景",
+  "tui.tips.compose_next":
+    "推薦前沿模型使用 {highlight}/compose-next{/highlight} 代替 Compose 智慧體",
   "tui.tips.undo": "使用 {highlight}/undo{/highlight} 復原最後一條訊息及其檔案變更",
   "tui.tips.redo": "使用 {highlight}/redo{/highlight} 還原先前復原的訊息與檔案變更",
   "tui.tips.drag_drop": "把圖片或 PDF 拖入終端機可作為上下文加入",
@@ -223,6 +225,8 @@ export const dict = {
   "tui.skill.compose:tdd.description": "測試驅動開發——先寫測試再寫實作",
   "tui.skill.compose:verify.description": "執行驗證命令並確認通過",
   "tui.skill.compose:worktree.description": "建立隔離工作空間進行特性開發",
+  "tui.skill.compose-next.description":
+    "新一代編排模式：面向強模型的端到端特性開發（明確需求、寫 spec、實作、驗證、評審、收尾）",
   "tui.skill.docx-official.slash": "Word文件",
   "tui.skill.xlsx-official.slash": "Excel表格",
   "tui.skill.pdf-official.slash": "PDF文件",
@@ -259,6 +263,7 @@ export const dict = {
   "tui.skill.compose:tdd.slash": "測試驅動",
   "tui.skill.compose:verify.slash": "驗證結果",
   "tui.skill.compose:worktree.slash": "隔離工作區",
+  "tui.skill.compose-next.slash": "新編排模式",
 
   // Language switching
   "tui.command.language.switch.title": "切換語言",
