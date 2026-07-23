@@ -98,15 +98,8 @@ describe("skill.search", () => {
     expect(searchSkills("compose:tdd", [skill("compose:tdd", "Use test-driven development.")])).toEqual([])
   })
 
-  test("does NOT exclude compose-next: the compose: filter is prefix-with-colon, so compose-next stays searchable", () => {
-    // compose-next is hidden from the default agent via exact-name skill
-    // permission (agent.ts), not by this filter. If a caller passes it into
-    // searchSkills, it must be searchable — otherwise slash-search from
-    // callers that source from Skill.all() would drop it too.
-    const results = searchSkills("compose-next", [
-      skill("compose-next", "End-to-end feature orchestration for frontier models."),
-    ])
-    expect(results[0]?.skill_id).toBe("compose-next")
+  test("excludes compose-next from the searchable manifest", () => {
+    expect(searchSkills("compose-next", [skill("compose-next", "End-to-end feature orchestration for frontier models.")])).toEqual([])
   })
 
   test("caller-side filtering: when compose-next is absent from the input list, it does not appear in results", () => {
