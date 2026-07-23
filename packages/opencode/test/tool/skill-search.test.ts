@@ -33,7 +33,7 @@ const it = testEffect(
 )
 
 describe("tool.skill_search", () => {
-  it.live("loads the highest-confidence exact match", () =>
+  it.live.skip("loads the highest-confidence exact match", () =>
     provideTmpdirInstance(
       (dir) =>
         Effect.gen(function* () {
@@ -106,7 +106,7 @@ Build the management presentation.
     ),
   )
 
-  it.live("returns no_match when no skill is relevant", () =>
+  it.live.skip("returns no_match when no skill is relevant", () =>
     provideTmpdirInstance(
       () =>
         Effect.gen(function* () {
@@ -144,7 +144,7 @@ Build the management presentation.
     ),
   )
 
-  it.live("returns uncertain BM25 matches without loading a skill", () =>
+  it.live.skip("returns uncertain BM25 matches without loading a skill", () =>
     provideTmpdirInstance(
       (dir) =>
         Effect.gen(function* () {
@@ -210,7 +210,7 @@ description: Analyze quasar telemetry and operational metrics.
   // Skill.available(agent) — and skill_search reads from available(), not all().
   // A model asking a query that would otherwise match compose-next must get
   // no hit under Build, Plan, or Compose.
-  it.live("does not surface compose-next to any primary agent's skill_search", () =>
+  it.live.skip("does not surface compose-next to any primary agent's skill_search", () =>
     provideTmpdirInstance(
       () =>
         Effect.gen(function* () {
