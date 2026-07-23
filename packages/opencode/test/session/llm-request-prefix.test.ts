@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { Layer, ManagedRuntime } from "effect"
 import { Instance } from "../../src/project/instance"
 import { Session as SessionNs } from "../../src/session"
@@ -14,10 +14,6 @@ import { ProviderTest } from "../fake/provider"
 import type { Agent } from "../../src/agent/agent"
 
 void Log.init({ print: false })
-
-afterEach(async () => {
-  await Instance.disposeAll()
-})
 
 function makeAgent(): Agent.Info {
   return {
@@ -44,6 +40,7 @@ async function withServices(
         await fn(rt)
       } finally {
         await rt.dispose()
+        await Instance.dispose()
       }
     },
   })
