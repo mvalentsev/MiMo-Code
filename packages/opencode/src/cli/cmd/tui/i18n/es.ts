@@ -63,6 +63,8 @@ export const dict = {
     "Combina varios {highlight}/skill-name{/highlight} en un mismo mensaje para usar varias Skills a la vez",
   "tui.tips.background":
     "Ejecuta {highlight}/background{/highlight} para usar una imagen personalizada como fondo de inicio",
+  "tui.tips.compose_next":
+    "Prueba {highlight}/compose-next{/highlight} en vez del agente Compose para modelos avanzados",
   "tui.tips.undo":
     "Usa {highlight}/undo{/highlight} para revertir el último mensaje y los cambios en archivos",
   "tui.tips.redo":
@@ -314,6 +316,8 @@ export const dict = {
   "tui.skill.compose:tdd.description": "Desarrollo guiado por tests — tests antes que código",
   "tui.skill.compose:verify.description": "Ejecutar verificación y confirmar resultado exitoso",
   "tui.skill.compose:worktree.description": "Crear un espacio de trabajo aislado para desarrollo",
+  "tui.skill.compose-next.description":
+    "Nueva orquestación: trabajo de función de extremo a extremo (grill, spec, implementar, verificar, revisar, finalizar) para modelos avanzados",
 
   // Language switching
   "tui.command.language.switch.title": "Cambiar idioma",

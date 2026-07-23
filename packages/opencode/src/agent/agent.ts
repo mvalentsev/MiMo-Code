@@ -108,6 +108,7 @@ export const layer = Layer.effect(
           skill: {
             "*": "allow",
             "compose:*": "deny",
+            "compose-next": "deny",
           },
           plan_enter: "deny",
           plan_exit: "deny",
@@ -210,7 +211,8 @@ export const layer = Layer.effect(
           compose: {
             name: "compose",
             color: "#a7a3d8",
-            description: "Compose mode. Orchestrates workflows with built-in compose skills.",
+            description:
+              "Compose mode (deprecated). Orchestrates workflows with built-in compose skills. For Fable/Sol-class models, use Build and run /compose-next instead.",
             options: {},
             permission: Permission.merge(
               defaults,

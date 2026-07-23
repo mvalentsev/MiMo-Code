@@ -1,16 +1,36 @@
 import * as CrossSpawnSpawner from "../../src/effect/cross-spawn-spawner"
 import { Effect, Layer } from "effect"
-import { describe, expect } from "bun:test"
+import { afterAll, beforeAll, describe, expect } from "bun:test"
 import path from "path"
 import type { Permission } from "../../src/permission"
 import type { Tool } from "../../src/tool"
+import { Agent } from "../../src/agent/agent"
+import { Skill } from "../../src/skill"
 import { SkillSearchTool } from "../../src/tool/skill-search"
 import { ToolRegistry } from "../../src/tool"
 import { provideTmpdirInstance } from "../fixture/fixture"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { testEffect } from "../lib/effect"
 
-const it = testEffect(Layer.mergeAll(ToolRegistry.defaultLayer, CrossSpawnSpawner.defaultLayer))
+
+// The compose-next invisibility test below needs the builtin bundle extracted;
+// other test files in the same process (e.g. test/skill/skill.test.ts) set
+// MIMOCODE_DISABLE_BUILTIN_SKILLS at module top-level and never restore it.
+// The Flag getter reads env lazily, so clear it here and restore afterwards.
+const savedEnv = process.env.MIMOCODE_DISABLE_BUILTIN_SKILLS
+
+beforeAll(() => {
+  delete process.env.MIMOCODE_DISABLE_BUILTIN_SKILLS
+})
+
+afterAll(() => {
+  if (savedEnv === undefined) delete process.env.MIMOCODE_DISABLE_BUILTIN_SKILLS
+  else process.env.MIMOCODE_DISABLE_BUILTIN_SKILLS = savedEnv
+})
+
+const it = testEffect(
+  Layer.mergeAll(ToolRegistry.defaultLayer, Agent.defaultLayer, Skill.defaultLayer, CrossSpawnSpawner.defaultLayer),
+)
 
 describe("tool.skill_search", () => {
   it.live("loads the highest-confidence exact match", () =>
@@ -51,7 +71,7 @@ Build the management presentation.
           const agent = { name: "build", mode: "primary" as const, permission: [], options: {} }
           const tool = (yield* registry.tools({
             providerID: "opencode" as any,
-            modelID: "mimo-v2" as any,
+            modelID: "gpt-5" as any,
             agent,
           })).find((item) => item.id === SkillSearchTool.id)
           if (!tool) throw new Error("Skill search tool not found")
@@ -94,7 +114,7 @@ Build the management presentation.
           const agent = { name: "build", mode: "primary" as const, permission: [], options: {} }
           const tool = (yield* registry.tools({
             providerID: "opencode" as any,
-            modelID: "mimo-v2" as any,
+            modelID: "gpt-5" as any,
             agent,
           })).find((item) => item.id === SkillSearchTool.id)
           if (!tool) throw new Error("Skill search tool not found")
@@ -155,7 +175,7 @@ description: Analyze quasar telemetry and operational metrics.
           const agent = { name: "build", mode: "primary" as const, permission: [], options: {} }
           const tool = (yield* registry.tools({
             providerID: "opencode" as any,
-            modelID: "mimo-v2" as any,
+            modelID: "gpt-5" as any,
             agent,
           })).find((item) => item.id === SkillSearchTool.id)
           if (!tool) throw new Error("Skill search tool not found")
@@ -179,6 +199,82 @@ description: Analyze quasar telemetry and operational metrics.
           expect(payload.results[0].skill_id).toBe("quasar-analysis")
           expect(payload.results.length).toBeLessThanOrEqual(3)
           expect(requests).toEqual([])
+        }),
+      { git: true },
+    ),
+  )
+
+  // Regression: compose-next is a builtin skill that ships in Skill.all() so
+  // the /compose-next slash command works, but the default agent's
+  // "compose-next: deny" skill permission must keep it out of
+  // Skill.available(agent) — and skill_search reads from available(), not all().
+  // A model asking a query that would otherwise match compose-next must get
+  // no hit under Build, Plan, or Compose.
+  it.live("does not surface compose-next to any primary agent's skill_search", () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const agents = yield* Agent.Service
+          const registry = yield* ToolRegistry.Service
+          const skills = yield* Skill.Service
+
+          // Precondition: compose-next is discoverable at the registry level
+          // (ships in Skill.all()) so /compose-next slash still works. If this
+          // fails the test below is vacuous — bail early with a clear signal.
+          const all = yield* skills.all()
+          expect(
+            all.some((s) => s.name === "compose-next"),
+            "compose-next must be present in Skill.all() as a builtin; otherwise the invisibility test below is vacuous",
+          ).toBe(true)
+
+          const query = "end to end feature orchestration grill spec implement verify review finish"
+
+          for (const agentName of ["build", "plan", "compose"] as const) {
+            const agent = yield* agents.get(agentName)
+            expect(agent).toBeDefined()
+
+            // Sanity: compose-next is filtered out of the agent's available skills.
+            const available = yield* skills.available(agent!)
+            expect(
+              available.every((s) => s.name !== "compose-next"),
+              `compose-next must be absent from Skill.available(${agentName}) via the default agent's exact-name deny rule`,
+            ).toBe(true)
+
+            const tool = (yield* registry.tools({
+              providerID: "opencode" as any,
+              modelID: "gpt-5" as any,
+              agent: agent!,
+            })).find((item) => item.id === SkillSearchTool.id)
+            if (!tool) throw new Error(`Skill search tool not found for agent ${agentName}`)
+
+            const requests: Array<Omit<Permission.Request, "id" | "sessionID" | "tool">> = []
+            const result = yield* tool.execute(
+              { query },
+              {
+                sessionID: SessionID.make("ses_test"),
+                messageID: MessageID.make("msg_test"),
+                agent: agentName,
+                abort: AbortSignal.any([]),
+                messages: [],
+                metadata: () => Effect.void,
+                ask: (request) => Effect.sync(() => requests.push(request)),
+              },
+            )
+
+            const [payloadStr] = result.output.split("\n\n<skill_content")
+            const payload = JSON.parse(payloadStr)
+
+            if (payload.status === "matched") {
+              expect(
+                payload.results.every((r: { skill_id: string }) => r.skill_id !== "compose-next"),
+                `compose-next must not appear in skill_search results for agent=${agentName}`,
+              ).toBe(true)
+              expect(
+                payload.loaded_skill_id,
+                `skill_search must not auto-load compose-next for agent=${agentName}`,
+              ).not.toBe("compose-next")
+            }
+          }
         }),
       { git: true },
     ),

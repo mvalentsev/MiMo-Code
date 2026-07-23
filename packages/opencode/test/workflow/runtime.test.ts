@@ -875,11 +875,9 @@ describe("WorkflowRuntime replay journal", () => {
 // null contract — these tests pin both invariants: the script still sees null,
 // AND the bus carries one event per failed agent with the right reason.
 describe("WorkflowRuntime agent failure event (Gap 3)", () => {
-  it.live("a 400 client error → reason='no-deliverable'; success sibling → no event", () =>
-    // The actor outcome is status:"success" (agent finished its turn cleanly),
-    // but the failed-LLM call produced no assistant text → no finalText/structured
-    // to extract → deliverable is null → reason="no-deliverable". This matches the
-    // existing "a failing child yields null" test's mechanism (line 79).
+  it.live("a 400 client error → reason='actor-error'; success sibling → no event", () =>
+    // A terminal assistant error now fails the actor outcome instead of being
+    // misreported as a successful turn with no deliverable.
     provideTmpdirServer(
       Effect.fnUntraced(function* ({ llm }) {
         const runtime = yield* WorkflowRuntime.Service
@@ -909,7 +907,7 @@ describe("WorkflowRuntime agent failure event (Gap 3)", () => {
         // Bus is async; let the publish settle before asserting.
         yield* Effect.sleep("100 millis")
         expect(events.length).toBe(1)
-        expect(events[0].reason).toBe("no-deliverable")
+        expect(events[0].reason).toBe("actor-error")
         expect(events[0].label).toBe("fail-one")
         expect(events[0].phase).toBe("Test")
       }),

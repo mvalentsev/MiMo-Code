@@ -60,6 +60,8 @@ export const dict = {
   "tui.tips.multi_skills":
     "1 つのメッセージ内で複数の {highlight}/skill-name{/highlight} を組み合わせて、複数の Skill を同時に使えます",
   "tui.tips.background": "{highlight}/background{/highlight} を実行してホーム背景にお好みの画像を設定できます",
+  "tui.tips.compose_next":
+    "{highlight}/compose-next{/highlight} を推奨（強力なモデル向け・Compose 代替）",
   "tui.tips.undo": "{highlight}/undo{/highlight} で直前のメッセージとファイル変更を取り消します",
   "tui.tips.redo": "{highlight}/redo{/highlight} で取り消したメッセージとファイル変更を復元します",
   "tui.tips.drag_drop": "画像や PDF をターミナルにドラッグ＆ドロップしてコンテキストに追加できます",
@@ -246,6 +248,8 @@ export const dict = {
   "tui.skill.compose:tdd.description": "テスト駆動開発 — コードの前にテストを書く",
   "tui.skill.compose:verify.description": "検証コマンドを実行し合格を確認",
   "tui.skill.compose:worktree.description": "機能開発用の隔離ワークスペースを作成",
+  "tui.skill.compose-next.description":
+    "新世代編成モード：強力なモデル向けにエンドツーエンドで機能開発を進める（grill・spec・実装・検証・レビュー・完了）",
 
   // Language switching
   "tui.command.language.switch.title": "言語を切り替え",

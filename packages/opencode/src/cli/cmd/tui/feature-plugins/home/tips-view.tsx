@@ -6,6 +6,7 @@ import { Flag } from "@/flag/flag"
 
 const themeCount = Object.keys(DEFAULT_THEMES).length
 const TIP_ROTATION_MS = 10_000
+const COMPOSE_LOCK_TIP = "tui.tips.compose_next"
 
 // Weighted tip priority. Higher weight = shown more often.
 // Promote recently-added or critical features so users discover them.
@@ -181,7 +182,12 @@ export function Tips() {
   const [key, setKey] = createSignal(pickWeighted(allKeys))
   const interval = setInterval(() => setKey(pickWeighted(allKeys)), TIP_ROTATION_MS)
   onCleanup(() => clearInterval(interval))
-  const parts = createMemo(() => parse(lang.t(key(), { count: themeCount })))
+  // Display override: while the current agent is Compose, show the compose-next
+  // deprecation tip in place of whatever the rotation currently holds. The
+  // rotation keeps running underneath; leaving Compose reveals the current
+  // rotation key with no artificial swap.
+  const displayKey = createMemo(() => (local.agent.current()?.name === "compose" ? COMPOSE_LOCK_TIP : key()))
+  const parts = createMemo(() => parse(lang.t(displayKey(), { count: themeCount })))
   const labelColor = createMemo(() => {
     const agent = local.agent.current()
     return agent ? local.agent.color(agent.name) : theme.warning
